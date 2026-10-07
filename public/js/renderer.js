@@ -87,6 +87,20 @@ export class TacticalRenderer {
             sCtx.strokeStyle = '#1b212a';
             sCtx.lineWidth = 0.8;
             sCtx.strokeRect(x, y, ts, ts);
+            const mark = (tx * 17 + ty * 31) % 5;
+            if (mark === 0) {
+              sCtx.fillStyle = '#202630';
+              sCtx.fillRect(x + ts * 0.22, y + ts * 0.3, 3, 3);
+              sCtx.fillRect(x + ts * 0.7, y + ts * 0.65, 2, 2);
+            } else if (mark === 1) {
+              sCtx.strokeStyle = '#0d1117';
+              sCtx.lineWidth = 1;
+              sCtx.beginPath();
+              sCtx.moveTo(x + ts * 0.3, y + ts * 0.25);
+              sCtx.lineTo(x + ts * 0.42, y + ts * 0.48);
+              sCtx.lineTo(x + ts * 0.36, y + ts * 0.62);
+              sCtx.stroke();
+            }
             break;
           }
           case TILE_TYPES.FLOOR_OFFICE: {
@@ -95,6 +109,13 @@ export class TacticalRenderer {
             sCtx.strokeStyle = '#303947';
             sCtx.lineWidth = 0.8;
             sCtx.strokeRect(x, y, ts, ts);
+            sCtx.strokeStyle = '#353e49';
+            sCtx.beginPath();
+            sCtx.moveTo(x + ts * 0.5, y + 2);
+            sCtx.lineTo(x + ts * 0.5, y + ts - 2);
+            sCtx.moveTo(x + 2, y + ts * 0.5);
+            sCtx.lineTo(x + ts - 2, y + ts * 0.5);
+            sCtx.stroke();
             break;
           }
           case TILE_TYPES.METAL_GRATE: {
@@ -116,7 +137,15 @@ export class TacticalRenderer {
             sCtx.lineWidth = 1.2;
             sCtx.strokeRect(x, y, ts, ts);
             sCtx.fillStyle = '#2a3340';
-            sCtx.fillRect(x + 2, y + 2, ts - 4, 3);
+            sCtx.fillRect(x + 2, y + 2, ts - 4, 5);
+            sCtx.strokeStyle = '#151a21';
+            sCtx.lineWidth = 1;
+            sCtx.beginPath();
+            sCtx.moveTo(x + 2, y + ts * 0.52);
+            sCtx.lineTo(x + ts - 2, y + ts * 0.52);
+            sCtx.moveTo(x + ts * 0.48, y + ts * 0.52);
+            sCtx.lineTo(x + ts * 0.48, y + ts - 2);
+            sCtx.stroke();
             break;
           }
           case TILE_TYPES.WALL_CONTAINER: {
@@ -131,6 +160,9 @@ export class TacticalRenderer {
               sCtx.moveTo(x + i, y + 2); sCtx.lineTo(x + i, y + ts - 2);
               sCtx.stroke();
             }
+            sCtx.fillStyle = '#a45b45';
+            sCtx.fillRect(x + 3, y + 5, 2, 2);
+            sCtx.fillRect(x + ts - 5, y + ts - 7, 2, 2);
             break;
           }
           case TILE_TYPES.COVER_CRATE: {
@@ -143,6 +175,11 @@ export class TacticalRenderer {
             sCtx.moveTo(x + 2, y + 2); sCtx.lineTo(x + ts - 2, y + ts - 2);
             sCtx.moveTo(x + ts - 2, y + 2); sCtx.lineTo(x + 2, y + ts - 2);
             sCtx.stroke();
+            sCtx.strokeStyle = '#9b7657';
+            sCtx.beginPath();
+            sCtx.moveTo(x + ts / 2, y + 3); sCtx.lineTo(x + ts / 2, y + ts - 3);
+            sCtx.moveTo(x + 3, y + ts / 2); sCtx.lineTo(x + ts - 3, y + ts / 2);
+            sCtx.stroke();
             break;
           }
           case TILE_TYPES.DOOR_FRAME: {
@@ -151,13 +188,46 @@ export class TacticalRenderer {
             sCtx.strokeStyle = '#d4a359';
             sCtx.lineWidth = 1.5;
             sCtx.strokeRect(x + 3, y + 3, ts - 6, ts - 6);
+            sCtx.fillStyle = '#d4a359';
+            sCtx.fillRect(x + ts * 0.45, y + 5, 4, ts - 10);
+            sCtx.fillStyle = '#687481';
+            sCtx.beginPath();
+            sCtx.arc(x + 7, y + 7, 1.5, 0, Math.PI * 2);
+            sCtx.arc(x + ts - 7, y + 7, 1.5, 0, Math.PI * 2);
+            sCtx.fill();
+            break;
+          }
+          case TILE_TYPES.BLAST_DOOR: {
+            sCtx.fillStyle = '#10151b';
+            sCtx.fillRect(x, y, ts, ts);
+            sCtx.fillStyle = '#37434d';
+            sCtx.fillRect(x + 3, y + 3, ts - 6, ts - 6);
+            sCtx.strokeStyle = '#c0392b';
+            sCtx.lineWidth = 2;
+            sCtx.strokeRect(x + 3, y + 3, ts - 6, ts - 6);
+            sCtx.strokeStyle = '#d4a359';
+            sCtx.lineWidth = 1;
+            sCtx.beginPath();
+            sCtx.moveTo(x + ts * 0.5, y + 5);
+            sCtx.lineTo(x + ts * 0.5, y + ts - 5);
+            sCtx.stroke();
+            sCtx.fillStyle = '#d4a359';
+            sCtx.fillRect(x + 6, y + 6, 3, 3);
+            sCtx.fillRect(x + ts - 9, y + ts - 9, 3, 3);
             break;
           }
           case TILE_TYPES.FORKLIFT_PROP: {
             sCtx.fillStyle = '#f39c12';
-            sCtx.fillRect(x + 4, y + 6, ts - 8, ts - 12);
-            sCtx.fillStyle = '#2c3e50';
-            sCtx.fillRect(x + ts - 6, y + 8, 4, ts - 16);
+            sCtx.fillRect(x + 7, y + 7, ts - 17, ts - 14);
+            sCtx.fillStyle = '#24303a';
+            sCtx.fillRect(x + 12, y + 10, ts - 26, ts - 20);
+            sCtx.fillStyle = '#080a0d';
+            sCtx.fillRect(x + 5, y + 8, 4, 8);
+            sCtx.fillRect(x + 5, y + ts - 16, 4, 8);
+            sCtx.fillRect(x + ts - 12, y + 8, 4, 8);
+            sCtx.fillRect(x + ts - 12, y + ts - 16, 4, 8);
+            sCtx.fillStyle = '#c7d0d8';
+            sCtx.fillRect(x + ts - 7, y + 8, 3, ts - 16);
             break;
           }
           case TILE_TYPES.RAILROAD_TRACK: {

@@ -33,6 +33,7 @@ export class GridInventory {
     this.heldOriginal = null;
     this.hoverTarget = null;
     this.ghostEl = null;
+    this.lastItemPress = null;
 
     // High performance Drag-and-Drop caching state (Zero Lag / Zero DOM Reflow)
     this.cachedGridBounds = [];
@@ -158,7 +159,7 @@ export class GridInventory {
     modal.innerHTML = `
       <div class="inventory-header">
         <div class="inventory-title">TACTICAL GEAR INSPECTION (TETRIS MATRIX)</div>
-        <div class="inventory-sub">[R] ROTATE &bull; SHIFT-CLICK MOVE &bull; [TAB] / [ESC] CLOSE</div>
+        <div class="inventory-sub">DOUBLE-CLICK WEAPONS TO EQUIP / UNEQUIP &bull; [R] ROTATE &bull; [TAB] CLOSE</div>
       </div>
       <div class="inventory-body">
         <div class="inv-col">
@@ -286,7 +287,10 @@ export class GridInventory {
         </div>
         <div class="inv-col" style="max-height: 560px; overflow-y: auto; padding-right: 8px;">
           <div class="grid-section">
-            <div class="grid-header" style="color: var(--accent-gold);">${this.stashGrid.name}</div>
+            <div class="grid-header" style="color: var(--accent-gold); display: flex; justify-content: space-between; align-items: center;">
+              ${this.stashGrid.name}
+              <button class="btn-secondary" id="btn-sort-stash" style="padding: 4px 10px;">SORT</button>
+            </div>
             <div class="tetris-grid" id="grid-stash" style="border-color: #d4a359;"></div>
           </div>
         </div>
@@ -298,6 +302,9 @@ export class GridInventory {
 
     document.getElementById('btn-close-stash-view')?.addEventListener('click', () => {
       this.close();
+    });
+    document.getElementById('btn-sort-stash')?.addEventListener('click', () => {
+      this._sortStashItems();
     });
 
     this._renderStaticGridsAndItems([
@@ -373,7 +380,7 @@ export class GridInventory {
       el.style.left = `${item.gx * cellPx + 1}px`;
       el.style.top = `${item.gy * cellPx + 1}px`;
       el.style.borderColor = getRarityColor(rarity) || item.color;
-      el.title = `${item.name} ${item.sub ? '(' + item.sub + ')' : ''} [Alt+Click: Quick-Equip | Ctrl+Click: Transfer]`;
+      el.title = `${item.name} ${item.sub ? '(' + item.sub + ')' : ''} [Double-click: Equip/Unequip | Alt+Click: Quick action | Ctrl+Click: Transfer]`;
 
       // Durability bar
       let durHtml = '';
@@ -424,6 +431,17 @@ export class GridInventory {
       el.addEventListener('mousedown', (e) => {
         if (!e.altKey && !e.shiftKey && !e.ctrlKey) {
           e.stopPropagation();
+          const now = Date.now();
+          const lastPress = this.lastItemPress;
+          if (isWeaponItem(item) && lastPress && lastPress.id === item.id &&
+              now - lastPress.time <= 350 &&
+              Math.hypot(e.clientX - lastPress.x, e.clientY - lastPress.y) <= 8) {
+            this.lastItemPress = null;
+            if (this.heldItem) this._cancelHold();
+            this._toggleWeaponEquipment(item);
+            return;
+          }
+          this.lastItemPress = { id: item.id, time: now, x: e.clientX, y: e.clientY };
           this._pickUpItem(item, e);
         }
       });
@@ -831,49 +849,7 @@ export class GridInventory {
    */
   _quickEquipItem(item) {
     if (isWeaponItem(item)) {
-      // Auto-orient horizontal
-      if (item.h > item.w) {
-        const tmp = item.w;
-        item.w = item.h;
-        item.h = tmp;
-      }
-
-      const primOccupied = this.items.find(it => it.gridId === 'primaryWeapon' && it.id !== item.id);
-      const secOccupied = this.items.find(it => it.gridId === 'secondaryWeapon' && it.id !== item.id);
-      const oldGridId = item.gridId;
-
-      if (!primOccupied) {
-        item.gridId = 'primaryWeapon';
-        item.gx = 0;
-        item.gy = 0;
-      } else if (!secOccupied && item.w <= 4) {
-        item.gridId = 'secondaryWeapon';
-        item.gx = 0;
-        item.gy = 0;
-      } else {
-        // Swap with primary weapon
-        primOccupied.gridId = oldGridId;
-        primOccupied.gx = item.gx;
-        primOccupied.gy = item.gy;
-        if (oldGridId.startsWith('container_') && this.onContainerTransfer && this.activeContainer) {
-          this.onContainerTransfer(this.activeContainer.id, primOccupied.id, 'put', primOccupied);
-        }
-        item.gridId = 'primaryWeapon';
-        item.gx = 0;
-        item.gy = 0;
-      }
-
-      if (oldGridId.startsWith('container_') && this.onContainerTransfer && this.activeContainer) {
-        this.onContainerTransfer(this.activeContainer.id, item.id, 'take', null);
-      }
-
-      audioEngine.playItemMove();
-      this._renderItemsOnly();
-      this._setStatus(`QUICK-EQUIPPED ${item.name}`);
-
-      if (this.onEquipmentChanged) {
-        this.onEquipmentChanged();
-      }
+      this._toggleWeaponEquipment(item);
       return;
     }
 
@@ -893,6 +869,91 @@ export class GridInventory {
         }
       }
     }
+  }
+
+  _toggleWeaponEquipment(item) {
+    const weaponSlots = ['primaryWeapon', 'secondaryWeapon'];
+    const equippedGrid = weaponSlots.find(id => item.gridId === id);
+    if (equippedGrid) {
+      const destinations = this.viewMode === 'OUT_OF_RAID_STASH'
+        ? ['stash']
+        : ['backpack', 'rig', 'pockets', 'alpha'];
+      const orientations = item.w === item.h
+        ? [[item.w, item.h]]
+        : [[item.w, item.h], [item.h, item.w]];
+      for (const gridId of destinations) {
+        const grid = this._getGridDef(gridId);
+        if (!grid || !document.getElementById(`grid-${gridId}`)) continue;
+        for (const [width, height] of orientations) {
+          for (let y = 0; y <= grid.rows - height; y++) {
+            for (let x = 0; x <= grid.cols - width; x++) {
+              if (this.canPlace(gridId, item, x, y, width, height)) {
+                item.w = width;
+                item.h = height;
+                this._applyTransfer(item, gridId, x, y, grid.name);
+                return;
+              }
+            }
+          }
+        }
+      }
+      this._setStatus(`NO SPACE TO UNEQUIP ${item.name}`);
+      return;
+    }
+
+    const width = item.h > item.w ? item.h : item.w;
+    const height = item.h > item.w ? item.w : item.h;
+    for (const gridId of weaponSlots) {
+      const grid = this._getGridDef(gridId);
+      if (!grid || !document.getElementById(`grid-${gridId}`)) continue;
+      if (this.items.some(other => other.gridId === gridId && other.id !== item.id)) continue;
+      if (width > grid.cols || height > grid.rows) continue;
+      item.w = width;
+      item.h = height;
+      this._applyTransfer(item, gridId, 0, 0, grid.name);
+      return;
+    }
+    this._setStatus(`NO EMPTY WEAPON SLOT FOR ${item.name}`);
+  }
+
+  _sortStashItems() {
+    const originalItems = this.items;
+    const stashItems = originalItems.filter(item => item.gridId === 'stash');
+    const originalPositions = new Map(stashItems.map(item => [item.id, { gx: item.gx, gy: item.gy }]));
+    this.items = originalItems.filter(item => item.gridId !== 'stash');
+
+    const sortedItems = [...stashItems].sort((a, b) =>
+      (b.w * b.h) - (a.w * a.h) || b.h - a.h || a.name.localeCompare(b.name)
+    );
+
+    for (const item of sortedItems) {
+      let placed = false;
+      for (let y = 0; y <= this.stashGrid.rows - item.h && !placed; y++) {
+        for (let x = 0; x <= this.stashGrid.cols - item.w; x++) {
+          if (this.canPlace('stash', item, x, y, item.w, item.h)) {
+            item.gx = x;
+            item.gy = y;
+            this.items.push(item);
+            placed = true;
+            break;
+          }
+        }
+      }
+      if (!placed) {
+        for (const stashItem of stashItems) {
+          const position = originalPositions.get(stashItem.id);
+          stashItem.gx = position.gx;
+          stashItem.gy = position.gy;
+        }
+        this.items = originalItems;
+        this._setStatus('STASH SORT CANCELLED: ITEMS DO NOT FIT');
+        return;
+      }
+    }
+
+    this._renderItemsOnly();
+    this._saveStashStateToProfile();
+    this._setStatus('STASH SORTED BY ITEM SIZE');
   }
 
   _fastTransferItem(item) {
@@ -1050,6 +1111,10 @@ export class GridInventory {
   _bindEvents() {
     window.addEventListener('mousemove', (e) => {
       if (this.heldItem) {
+        if (this.lastItemPress &&
+            Math.hypot(e.clientX - this.lastItemPress.x, e.clientY - this.lastItemPress.y) > 8) {
+          this.lastItemPress = null;
+        }
         this.mouseClientX = e.clientX;
         this.mouseClientY = e.clientY;
         if (!this.dragRafId) {

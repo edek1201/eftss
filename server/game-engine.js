@@ -97,7 +97,7 @@ export class GameRoom {
     const weaponKeys = ['asval', 'vss', 'vector', 'mpx', 'saiga12', 'm4a1', 'ak74m', 'mp5', 'mosin'];
     const techKeys = ['bitcoin', 'gpu', 'ledx', 'flashdrive', 'tetriz', 'labs_keycard'];
     const medKeys = ['golden_star', 'morphine', 'grizzly', 'salewa', 'ai2', 'bandage', 'splint'];
-    const ammoKeys = ['ammo_m855a1', 'ammo_bt', 'ammo_sp6', 'ammo_lps', 'ammo_pst'];
+    const ammoKeys = ['ammo_m855a1', 'ammo_bt', 'ammo_sp6', 'ammo_lps', 'ammo_pst', 'ammo_12ga', 'ammo_tt'];
 
     for (const c of this.map.containers) {
       const items = [];
@@ -115,6 +115,10 @@ export class GameRoom {
         if (Math.random() < 0.35 && ITEM_CATALOG.armor_trooper) {
           helperPlaceItem(items, ITEM_CATALOG.armor_trooper, gridW, gridH);
         }
+        if (Math.random() < 0.45) {
+          const extraKey = ['armor_korund', 'armor_maska', 'gpu', 'ledx'][Math.floor(Math.random() * 4)];
+          if (ITEM_CATALOG[extraKey]) helperPlaceItem(items, ITEM_CATALOG[extraKey], gridW, gridH);
+        }
       } else if (c.type === 'corpse_scav') {
         const techKey = techKeys[Math.floor(Math.random() * techKeys.length)];
         if (ITEM_CATALOG[techKey]) helperPlaceItem(items, ITEM_CATALOG[techKey], gridW, gridH);
@@ -125,6 +129,15 @@ export class GameRoom {
         if (Math.random() < 0.40) {
           helperPlaceItem(items, WEAPON_REGISTRY.glock17, gridW, gridH);
         }
+        if (Math.random() < 0.65) {
+          const pocketAmmo = ammoKeys[Math.floor(Math.random() * ammoKeys.length)];
+          if (ITEM_CATALOG[pocketAmmo]) helperPlaceItem(items, ITEM_CATALOG[pocketAmmo], gridW, gridH);
+        }
+        if (Math.random() < 0.30) {
+          const pocketLoot = ['flashdrive', 'tetriz', 'bandage', 'splint'];
+          const pocketItem = pocketLoot[Math.floor(Math.random() * pocketLoot.length)];
+          if (ITEM_CATALOG[pocketItem]) helperPlaceItem(items, ITEM_CATALOG[pocketItem], gridW, gridH);
+        }
       } else if (c.type === 'ammo_box') {
         const count = 2 + Math.floor(Math.random() * 2);
         for (let k = 0; k < count; k++) {
@@ -132,14 +145,14 @@ export class GameRoom {
           if (ITEM_CATALOG[aKey]) helperPlaceItem(items, ITEM_CATALOG[aKey], gridW, gridH);
         }
       } else if (c.type === 'med_bag') {
-        const count = 2 + Math.floor(Math.random() * 2);
+        const count = 3 + Math.floor(Math.random() * 2);
         for (let k = 0; k < count; k++) {
           const mKey = medKeys[Math.floor(Math.random() * medKeys.length)];
           if (ITEM_CATALOG[mKey]) helperPlaceItem(items, ITEM_CATALOG[mKey], gridW, gridH);
         }
       } else {
         const pool = [...techKeys, ...medKeys, ...ammoKeys];
-        for (let k = 0; k < 2; k++) {
+        for (let k = 0; k < 3; k++) {
           const pick = pool[Math.floor(Math.random() * pool.length)];
           if (ITEM_CATALOG[pick]) helperPlaceItem(items, ITEM_CATALOG[pick], gridW, gridH);
         }
@@ -238,14 +251,14 @@ export class GameRoom {
             id: 'boss_loot_bitcoin',
             name: 'PHYSICAL BITCOIN (0.2 BTC)',
             type: 'valuable',
-            w: 1, h: 1, gx: 2, gy: 3,
+            w: 1, h: 1, gx: 3, gy: 2,
             color: '#f1c40f', tag: 'VALUABLE', sub: '0.2 BTC Crypto', rarity: 'gold'
           },
           {
             id: 'boss_loot_grizzly',
             name: 'GRIZZLY MEDICAL KIT',
             type: 'med',
-            w: 2, h: 2, gx: 0, gy: 3,
+            w: 2, h: 2, gx: 4, gy: 2,
             color: '#e74c3c', tag: 'TRAUMA', sub: '1800 / 1800 HP', rarity: 'gold'
           }
         ]
@@ -300,7 +313,7 @@ export class GameRoom {
               id: `guard_armor_${g}`,
               name: 'HIGHCOM TROOPER T4',
               type: 'armor',
-              w: 2, h: 3, gx: 0, gy: 2,
+              w: 2, h: 3, gx: 4, gy: 2,
               color: '#27ae60', tag: 'ARMOR T4', sub: '85 / 85 Durability', rarity: 'tactical'
             },
             {
@@ -384,6 +397,20 @@ export class GameRoom {
             type: 'valuable',
             w: 1, h: 1, gx: 1, gy: 2,
             color: '#f1c40f', tag: 'CASH', sub: '8,500 ₽', rarity: 'common'
+          },
+          {
+            id: `loot_bot_${i}_med`,
+            name: 'ESMARCH TOURNIQUET',
+            type: 'med',
+            w: 1, h: 1, gx: 2, gy: 2,
+            color: '#2ecc71', tag: 'BLEED', sub: 'Heavy Bleed Stop', rarity: 'common'
+          },
+          {
+            id: `loot_bot_${i}_valuable`,
+            name: 'SCAV POCKET FIND',
+            type: 'valuable',
+            w: 1, h: 1, gx: 3, gy: 2,
+            color: '#8e9b76', tag: 'BARTER', sub: 'Small barter item', rarity: 'common'
           }
         ]
       };
@@ -896,8 +923,8 @@ export class GameRoom {
       type: 'corpse_scav',
       x: bot.x,
       y: bot.y,
-      gridW: bot.isBoss ? 4 : 3,
-      gridH: bot.isBoss ? 4 : 3,
+      gridW: 6,
+      gridH: bot.isBoss ? 4 : bot.isGuard ? 5 : 3,
       items: bot.loot
     };
 
