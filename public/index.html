@@ -11,40 +11,75 @@
     <!-- Dynamic Tactical Viewport Canvas -->
     <canvas id="mainCanvas"></canvas>
 
-    <!-- 1. OPERATOR INITIALIZATION MODAL (FIRST TIME VISIT) -->
-    <div class="overlay-screen" id="init-operator-modal" style="display: none;">
-      <div class="terminal-box">
-        <div class="terminal-header">
-          <div class="terminal-title">BATTLESTATE TERMINAL &bull; OPERATOR ENLISTMENT</div>
-          <div class="terminal-sub">IDENTIFICATION PROTOCOL v0.14.2</div>
-        </div>
+    <!-- ACCOUNT ACCESS -->
+    <div class="overlay-screen auth-screen" id="init-operator-modal" style="display: none;">
+      <div class="auth-layout">
+        <section class="auth-briefing">
+          <div class="auth-overline">NORVINSK SPECIAL ECONOMIC ZONE</div>
+          <div class="auth-wordmark">ESCAPE<br><span>FROM TARKOV</span></div>
+          <div class="auth-edition">PMC PERSONNEL DATABASE // SECURE ACCESS</div>
+          <div class="auth-briefing-rule"></div>
+          <p>THE BORDER IS CLOSED.</p>
+          <p class="auth-copy-muted">Identify yourself to access your hideout, stash, and deployment records. Your operator profile is stored with your account.</p>
+          <div class="auth-status"><span class="auth-status-dot"></span> BATTLESTATE NETWORK // READY</div>
+          <div class="auth-footnote">UNAUTHORIZED ACCESS IS PROHIBITED</div>
+        </section>
 
-        <div class="terminal-body">
-          <p style="color: var(--text-muted); line-height: 1.5; margin-bottom: 16px;">
-            Welcome to the Norvinsk Special Economic Zone. Establish your mercenary credentials to access the hideout and persistent stash.
-          </p>
-
-          <div class="form-group">
-            <label for="input-init-callsign">PMC CALLSIGN / NICKNAME:</label>
-            <input type="text" id="input-init-callsign" value="USEC_Ghost" maxlength="16" autofocus>
+        <section class="auth-terminal">
+          <div class="auth-terminal-heading">
+            <div class="terminal-title">OPERATOR AUTHENTICATION</div>
+            <div class="terminal-sub">PERSONNEL ACCESS TERMINAL &bull; SECURE CHANNEL</div>
           </div>
-
-          <div class="form-group" style="margin-top: 12px;">
-            <label for="select-init-faction">PMC FACTION:</label>
-            <select id="select-init-faction" class="tarkov-select">
-              <option value="USEC">USEC (United Security LLC - Western Private Military)</option>
-              <option value="BEAR">BEAR (Battle Encounter Assault Regiment - Russian Federation)</option>
-            </select>
+          <div class="auth-tabs" role="tablist" aria-label="Account access">
+            <button type="button" id="auth-login-tab" class="auth-tab active">SIGN IN</button>
+            <button type="button" id="auth-register-tab" class="auth-tab">CREATE ACCOUNT</button>
           </div>
+          <div id="auth-notice" class="auth-notice" role="status" aria-live="polite"></div>
 
-          <button class="btn-deploy" id="btn-init-confirm" style="margin-top: 24px; width: 100%;">
-            ENLIST OPERATOR (CREATE SAVE)
-          </button>
-        </div>
+          <form id="auth-login-form" class="auth-form">
+            <div class="form-group">
+              <label for="input-login-username">ACCOUNT IDENTIFIER</label>
+              <input type="text" id="input-login-username" name="username" minlength="3" maxlength="20" autocomplete="username" required>
+            </div>
+            <div class="form-group">
+              <label for="input-login-password">PASSWORD</label>
+              <input type="password" id="input-login-password" name="password" maxlength="128" autocomplete="current-password" required>
+            </div>
+            <button class="btn-deploy auth-submit" type="submit">ACCESS HIDEOUT <span>&rarr;</span></button>
+            <div class="auth-form-note">Accounts and operator saves are shared across devices.</div>
+          </form>
+
+          <form id="auth-register-form" class="auth-form" hidden>
+            <div class="form-group">
+              <label for="input-register-username">ACCOUNT IDENTIFIER</label>
+              <input type="text" id="input-register-username" name="username" minlength="3" maxlength="20" pattern="[A-Za-z0-9_.-]{3,20}" autocomplete="username" required>
+            </div>
+            <div class="form-group">
+              <label for="input-register-password">PASSWORD <span class="auth-label-hint">8 CHARACTERS MINIMUM</span></label>
+              <input type="password" id="input-register-password" name="new-password" minlength="8" maxlength="128" autocomplete="new-password" required>
+            </div>
+            <div class="auth-form-split">
+              <div class="form-group">
+                <label for="input-register-callsign">PMC CALLSIGN</label>
+                <input type="text" id="input-register-callsign" name="callsign" value="USEC_Ghost" maxlength="16" required>
+              </div>
+              <div class="form-group">
+                <label for="select-register-faction">FACTION</label>
+                <select id="select-register-faction" class="tarkov-select" name="faction">
+                  <option value="USEC">USEC</option>
+                  <option value="BEAR">BEAR</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn-deploy auth-submit" type="submit">ENLIST PMC <span>&rarr;</span></button>
+            <div class="auth-form-note">Your local operator save, if present, is carried into this account.</div>
+          </form>
+          <div class="auth-terminal-footer"><span>SALTED PASSWORD HASH STORAGE</span><span>PMC ACCESS // 01</span></div>
+        </section>
       </div>
     </div>
 
-    <!-- 2. MAIN HIDEOUT & RAID DISPATCH HUB (AUTO-LOGIN SCREEN) -->
+    <!-- MAIN HIDEOUT & RAID DISPATCH HUB -->
     <div class="overlay-screen" id="hideout-screen" style="display: none;">
       <div class="hideout-container">
         <!-- Top Command Header: Operator Info, Currency & Stats -->
@@ -56,6 +91,7 @@
               <span class="badge-faction" id="hideout-faction-badge">USEC</span>
             </div>
             <div class="operator-balance">ROUBLES: <span id="hideout-roubles-val">500,000 ₽</span></div>
+            <div id="account-sync-status" class="account-sync-status">PROFILE SAVED TO SERVER</div>
           </div>
 
           <div class="hideout-stats-row">

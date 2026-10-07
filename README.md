@@ -12,11 +12,12 @@ Zero build steps, zero external front-end dependencies, zero external audio asse
 EFT/
 ├── package.json              # Project configuration (ES6 Modules enabled)
 ├── README.md                 # Architecture, controls & deployment guide
-├── server.js                 # Authoritative 20Hz server & universal WebSocket transport
+├── server.js                 # Authoritative server, WebSocket transport & account API
 ├── shared/
 │   ├── physics.js            # Circle-vs-AABB sliding physics, stamina, vector math
 │   └── map.js                # Factory (30x30), Warehouse (50x50), Bunker (40x40) + Containers
 ├── server/
+│   ├── account-store.js      # Password hashing and persistent PMC accounts
 │   └── game-engine.js        # 20Hz simulation, container loot seeding & transfer sync
 └── public/
     ├── index.html            # Pre-raid lobby, stash management, tactical HUD, dual-canvas DOM
@@ -25,7 +26,7 @@ EFT/
     └── js/
         ├── client.js         # Client game loop, physical bullet tracers, recoil & prediction
         ├── audio.js          # Procedural Web Audio API engine (zero external audio files)
-        ├── profile.js        # Persistent localStorage profile & 10x30 stash manager
+        ├── profile.js        # Account login, server profile sync & 10x30 stash manager
         ├── inventory.js      # Unified Tetris inventory & split-grid container looting
         ├── input.js          # SEMI vs FULL-AUTO fire controller with cyclic rate & audio
         ├── renderer.js       # Procedural operator, containers, tracers, recoil & HUD prompts
@@ -61,8 +62,12 @@ Map tiles are populated with interactive loot entities across all 3 maps:
 
 ---
 
-## 3. Persistent Profile & Main Menu Stash (`public/js/profile.js`)
-- **Browser `localStorage` Persistence**: Saves character profile, rubles ($500,000\text{ \u20BD}$ starting balance), and raid statistics (Raids, Survived, Deaths) keyed by callsign.
+## 3. Accounts, Persistent Profiles & Main Menu Stash (`server/account-store.js`, `public/js/profile.js`)
+- **Account access**: Create an account with a unique username, password, PMC callsign, and USEC/BEAR faction, then sign in from another browser or device.
+- **Protected game sessions**: The game WebSocket accepts connections only from a signed-in account session.
+- **Credential handling**: Passwords are stored as salted `scrypt` hashes, never plaintext. Login sessions use HTTP-only, same-site cookies; repeated login attempts are rate limited.
+- **Server-side persistence**: Account profiles, rubles ($500,000\text{ \u20BD}$ starting balance), stash/loadout, and raid statistics are saved to `data/accounts.json`. `localStorage` is only a local cache.
+- **Deployment requirement**: Keep `data/accounts.json` on persistent storage and back it up. Set `EFT_ACCOUNTS_FILE` to use a different file path. Production deployments must serve the game over HTTPS so session cookies are marked Secure.
 - **Out-of-Raid Character Management**:
   - Accessible via the **`[CHARACTER STASH & LOADOUT (10x30)]`** button in the pre-raid menu.
   - Features a scrollable **10 columns x 30 rows main stash** ($300$ slots).
@@ -120,16 +125,17 @@ Map tiles are populated with interactive loot entities across all 3 maps:
    ```
    http://localhost:3000
    ```
-3. Test **Character Stash & Loadout**:
+3. Create an account or sign in at the personnel terminal. The same credentials work on other devices served by this game server.
+4. Test **Character Stash & Loadout**:
    - Click **`[CHARACTER STASH & LOADOUT (10x30)]`** in the lobby to inspect your persistent storage and move items between stash and loadout.
-4. Test **Fire Selector & Web Audio**:
+5. Test **Fire Selector & Web Audio**:
    - Deploy into a raid.
    - Press **`[B]`** to toggle between `[SEMI]` and `[FULL-AUTO]`.
    - Test Left Click: in SEMI, holding the mouse fires only one shot; in AUTO, it fires continuously with screen shake recoil.
-5. Test **Interactive Looting**:
+6. Test **Interactive Looting**:
    - Approach any container (Green Weapon Crate, Scav Corpse, Ammo Box, Med Bag).
    - See the `[F] SEARCH CONTAINER` prompt appear.
    - Press **`[F]`** to rummage through the container and Shift-click or drag loot into your backpack/rig.
-6. Test **Extraction & Persistence**:
+7. Test **Extraction & Persistence**:
    - Walk into an extraction zone (e.g. *Gate 3* or *Cellars*) and hold position for 7.0 seconds.
    - Hear the radio beeps and extraction chime. All carried loot is saved to your persistent profile!

@@ -115,14 +115,23 @@ class GameClient {
 
     this.dom = {
       initModal: document.getElementById('init-operator-modal'),
-      inputInitCallsign: document.getElementById('input-init-callsign'),
-      selectInitFaction: document.getElementById('select-init-faction'),
-      btnInitConfirm: document.getElementById('btn-init-confirm'),
+      authLoginForm: document.getElementById('auth-login-form'),
+      authRegisterForm: document.getElementById('auth-register-form'),
+      authLoginTab: document.getElementById('auth-login-tab'),
+      authRegisterTab: document.getElementById('auth-register-tab'),
+      authNotice: document.getElementById('auth-notice'),
+      inputLoginUsername: document.getElementById('input-login-username'),
+      inputLoginPassword: document.getElementById('input-login-password'),
+      inputRegisterUsername: document.getElementById('input-register-username'),
+      inputRegisterPassword: document.getElementById('input-register-password'),
+      inputRegisterCallsign: document.getElementById('input-register-callsign'),
+      selectRegisterFaction: document.getElementById('select-register-faction'),
       hideoutScreen: document.getElementById('hideout-screen'),
       hudOverlay: document.getElementById('hud-overlay'),
       operatorTag: document.getElementById('hideout-operator-tag'),
       factionBadge: document.getElementById('hideout-faction-badge'),
       roublesDisplay: document.getElementById('hideout-roubles-val'),
+      accountSyncStatus: document.getElementById('account-sync-status'),
       statsSurv: document.getElementById('hideout-stats-surv'),
       statsRaids: document.getElementById('hideout-stats-raids'),
       statsKd: document.getElementById('hideout-stats-kd'),
@@ -182,6 +191,13 @@ class GameClient {
       btnReturnHideoutDirect: document.getElementById('btn-return-hideout-direct')
     };
 
+    profileManager.onSyncState = (status, error) => {
+      this.dom.accountSyncStatus.textContent = status;
+      this.dom.accountSyncStatus.title = error;
+      this.dom.accountSyncStatus.classList.toggle('syncing', status === 'SYNCING PROFILE...');
+      this.dom.accountSyncStatus.classList.toggle('error', status === 'PROFILE SYNC FAILED');
+    };
+
     this._initAccountSession();
     this._setupUIEvents();
     this._setupNetworkEvents();
@@ -190,30 +206,42 @@ class GameClient {
   /**
    * STEP 1-3: ACCOUNT INITIALIZATION & AUTO-LOGIN FLOW
    */
-  _initAccountSession() {
+  async _initAccountSession() {
     try {
-      if (profileManager.hasProfile()) {
-        this.profile = profileManager.loadProfile();
-        if (this.profile) {
-          this._openHideoutHub();
-        } else {
-          // loadProfile returned null (corrupt profile was wiped) — show init screen
-          this.dom.initModal.style.display = 'flex';
-          this.dom.hideoutScreen.style.display = 'none';
-        }
-      } else {
-        // First time launch: Prompt Operator Initialization
-        this.dom.initModal.style.display = 'flex';
-        this.dom.hideoutScreen.style.display = 'none';
+      const authenticated = await profileManager.restoreAccountSession();
+      if (authenticated) {
+        this.profile = profileManager.profile;
+        this._openHideoutHub();
+        return;
       }
-    } catch (err) {
-      // Any unexpected error during profile load must NOT prevent UI event binding.
-      console.error('[EFT] Profile init error — resetting to fresh operator screen:', err);
-      try { profileManager.logout(); } catch (_) { /* ignore */ }
       this.profile = null;
-      this.dom.initModal.style.display = 'flex';
-      this.dom.hideoutScreen.style.display = 'none';
+      this._showAuthScreen();
+    } catch (err) {
+      console.error('[EFT] Account session restore failed:', err);
+      this._showAuthScreen(err.message);
     }
+  }
+
+  _showAuthScreen(message = '') {
+    this.dom.initModal.style.display = 'flex';
+    this.dom.hideoutScreen.style.display = 'none';
+    this._setAuthMode('login');
+    this._showAuthNotice(message);
+  }
+
+  _setAuthMode(mode) {
+    const isRegister = mode === 'register';
+    this.dom.authLoginForm.hidden = isRegister;
+    this.dom.authRegisterForm.hidden = !isRegister;
+    this.dom.authLoginTab.classList.toggle('active', !isRegister);
+    this.dom.authRegisterTab.classList.toggle('active', isRegister);
+    this.dom.authNotice.textContent = '';
+    this.dom.authNotice.classList.remove('error');
+  }
+
+  _showAuthNotice(message, isError = true) {
+    this.dom.authNotice.textContent = message;
+    this.dom.authNotice.classList.toggle('error', isError && !!message);
   }
 
   _openHideoutHub() {
@@ -527,19 +555,48 @@ class GameClient {
   }
 
   _setupUIEvents() {
-    // Confirm Operator Initialization
-    this.dom.btnInitConfirm?.addEventListener('click', () => {
-      audioEngine.ensureContext();
-      const callsign = this.dom.inputInitCallsign.value.trim() || 'USEC_Operator';
-      const faction = this.dom.selectInitFaction.value || 'USEC';
-      this.profile = profileManager.initProfile(callsign, faction);
-      this._openHideoutHub();
+    this.dom.authLoginTab?.addEventListener('click', () => this._setAuthMode('login'));
+    this.dom.authRegisterTab?.addEventListener('click', () => this._setAuthMode('register'));
+
+    this.dom.authLoginForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submit = this.dom.authLoginForm.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      this._showAuthNotice('CONTACTING BATTLESTATE SERVER...', false);
+      try {
+        audioEngine.ensureContext();
+        this.profile = await profileManager.loginAccount(
+          this.dom.inputLoginUsername.value.trim(),
+          this.dom.inputLoginPassword.value
+        );
+        this.dom.inputLoginPassword.value = '';
+        this._openHideoutHub();
+      } catch (error) {
+        this._showAuthNotice(error.message);
+      } finally {
+        submit.disabled = false;
+      }
     });
 
-    this.dom.inputInitCallsign?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        this.dom.btnInitConfirm?.click();
+    this.dom.authRegisterForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submit = this.dom.authRegisterForm.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      this._showAuthNotice('CREATING PMC ACCOUNT...', false);
+      try {
+        audioEngine.ensureContext();
+        this.profile = await profileManager.registerAccount(
+          this.dom.inputRegisterUsername.value.trim(),
+          this.dom.inputRegisterPassword.value,
+          this.dom.inputRegisterCallsign.value.trim(),
+          this.dom.selectRegisterFaction.value
+        );
+        this.dom.inputRegisterPassword.value = '';
+        this._openHideoutHub();
+      } catch (error) {
+        this._showAuthNotice(error.message);
+      } finally {
+        submit.disabled = false;
       }
     });
 
@@ -551,11 +608,18 @@ class GameClient {
     });
 
     // Switch Account / Logout
-    this.dom.btnSwitchAccount?.addEventListener('click', () => {
+    this.dom.btnSwitchAccount?.addEventListener('click', async () => {
       audioEngine.ensureContext();
-      profileManager.logout();
-      this.dom.hideoutScreen.style.display = 'none';
-      this.dom.initModal.style.display = 'flex';
+      this.dom.btnSwitchAccount.disabled = true;
+      try {
+        await profileManager.logout();
+        this.profile = null;
+        this._showAuthScreen();
+      } catch (error) {
+        this._showAuthScreen(error.message);
+      } finally {
+        this.dom.btnSwitchAccount.disabled = false;
+      }
     });
 
     // Open Stash & Character Management (Out of raid)
