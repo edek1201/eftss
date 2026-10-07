@@ -45,6 +45,7 @@ export class GridInventory {
 
     this.viewMode = 'GEAR'; // 'GEAR' | 'CONTAINER_LOOT' | 'OUT_OF_RAID_STASH'
     this.onContainerTransfer = null;
+    this.onDropWeapon = null;
     this.onStashClosed = null;
     this.onEquipmentChanged = null;
 
@@ -190,7 +191,7 @@ export class GridInventory {
         </div>
       </div>
       <div class="inventory-footer">
-        <div class="inv-status" id="inv-status-msg">CLICK ITEM TO MOVE &bull; PRESS [R] TO ROTATE</div>
+        <div class="inv-status" id="inv-status-msg">CLICK ITEM TO MOVE &bull; PRESS [R] TO ROTATE &bull; PRESS [G] OR DRAG A WEAPON OUTSIDE TO DROP IT</div>
       </div>
     `;
 
@@ -481,7 +482,10 @@ export class GridInventory {
     this._positionGhost(mouseEvent.clientX, mouseEvent.clientY);
 
     this._renderItemsOnly();
-    this._setStatus(`HOLDING: ${item.name} (${item.w}x${item.h}) &bull; [R] ROTATE &bull; CLICK TO PLACE`);
+    const dropHint = isWeaponItem(item) && this.viewMode !== 'OUT_OF_RAID_STASH'
+      ? ' &bull; [G] OR DRAG OUTSIDE TO DROP'
+      : '';
+    this._setStatus(`HOLDING: ${item.name} (${item.w}x${item.h}) &bull; [R] ROTATE &bull; CLICK TO PLACE${dropHint}`);
   }
 
   _updateGhostDisplay(targetGridId = null) {
@@ -790,6 +794,38 @@ export class GridInventory {
     this._setStatus(`ACTION CANCELLED: ITEM RETURNED`);
   }
 
+  _dropHeldWeapon() {
+    const item = this.heldItem;
+    if (!item || !isWeaponItem(item) || this.viewMode === 'OUT_OF_RAID_STASH' || !this.onDropWeapon) return false;
+
+    const originalGridId = this.heldOriginal.gridId;
+    const itemIndex = this.items.indexOf(item);
+    if (itemIndex === -1) return false;
+
+    const sourceContainerId = originalGridId.startsWith('container_') ? this.activeContainer?.id : null;
+    if (!this.onDropWeapon(item, sourceContainerId)) return false;
+
+    this.items.splice(itemIndex, 1);
+
+    if (this.dragRafId) {
+      cancelAnimationFrame(this.dragRafId);
+      this.dragRafId = null;
+    }
+    this.overlay.classList.remove('is-dragging-item');
+    this.heldItem = null;
+    this.heldOriginal = null;
+    this.hoverTarget = null;
+    this.ghostEl.style.display = 'none';
+    this.ghostEl.style.transform = 'translate3d(-9999px, -9999px, 0)';
+    this._clearAllHighlights();
+    this._renderItemsOnly();
+
+    audioEngine.playItemMove();
+    this._setStatus(`DROPPED ${item.name} ON THE FLOOR`);
+    this.close();
+    return true;
+  }
+
   /**
    * Alt + Left Click: Quick-Equip directly into loadout slots
    */
@@ -1028,6 +1064,16 @@ export class GridInventory {
         cancelAnimationFrame(this.dragRafId);
         this.dragRafId = null;
       }
+      const modal = document.getElementById('inv-modal-container');
+      const rect = modal?.getBoundingClientRect();
+      const outsideInventory = rect && (
+        e.clientX < rect.left || e.clientX > rect.right ||
+        e.clientY < rect.top || e.clientY > rect.bottom
+      );
+      if (outsideInventory && isWeaponItem(this.heldItem) && this.viewMode !== 'OUT_OF_RAID_STASH') {
+        if (!this._dropHeldWeapon()) this._cancelHold();
+        return;
+      }
       if (this.hoverTarget) {
         this._placeHeldItem(this.hoverTarget.gridId, this.hoverTarget.gx, this.hoverTarget.gy);
       } else {
@@ -1053,6 +1099,11 @@ export class GridInventory {
         e.preventDefault();
         e.stopPropagation();
         this.rotateHeldItem();
+      } else if (e.code === 'KeyG' && this.overlay.classList.contains('active') &&
+                 this.heldItem && isWeaponItem(this.heldItem) && this.viewMode !== 'OUT_OF_RAID_STASH') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        this._dropHeldWeapon();
       }
     });
   }

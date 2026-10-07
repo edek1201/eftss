@@ -726,7 +726,19 @@ export class TacticalRenderer {
     ctx.save();
     ctx.translate(c.x, c.y);
 
-    if (c.type === 'crate_military') {
+    if (c.type === 'weapon_drop') {
+      ctx.rotate(-0.18);
+      ctx.fillStyle = '#20272b';
+      ctx.fillRect(-16, -4, 24, 8);
+      ctx.fillRect(7, -2, 11, 3);
+      ctx.fillRect(-8, 3, 5, 8);
+      ctx.fillStyle = '#d4a359';
+      ctx.fillRect(-13, -6, 8, 2);
+      ctx.fillStyle = '#f1c40f';
+      ctx.font = 'bold 8px Consolas, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('WEAPON', 0, -11);
+    } else if (c.type === 'crate_military') {
       ctx.fillStyle = '#253528';
       ctx.fillRect(-18, -12, 36, 24);
       ctx.fillStyle = '#324736';

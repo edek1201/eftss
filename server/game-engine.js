@@ -561,6 +561,63 @@ export class GameRoom {
     return false;
   }
 
+  dropWeapon(socketId, itemId, weaponType, sourceContainerId = null, ammoCur = null, ammoMax = null) {
+    const player = this.players.get(socketId);
+    if (this.state !== 'IN_RAID' || !player || !player.isAlive || player.extracted) return null;
+
+    const weaponDef = WEAPON_REGISTRY[weaponType];
+    if (!weaponDef) return null;
+
+    let itemState = null;
+    let sourceContainer = null;
+    let sourceItemIndex = -1;
+    if (sourceContainerId) {
+      sourceContainer = this.containers.get(sourceContainerId);
+      if (!sourceContainer) return null;
+      sourceItemIndex = sourceContainer.items.findIndex(item =>
+        item.id === itemId && item.weaponType === weaponType
+      );
+      if (sourceItemIndex === -1) return null;
+      itemState = sourceContainer.items[sourceItemIndex];
+    }
+
+    const groundItem = {
+      ...weaponDef,
+      ...(itemState || {}),
+      id: `ground_weapon_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      type: 'weapon',
+      weaponType: weaponDef.id,
+      name: weaponDef.name,
+      w: weaponDef.w,
+      h: weaponDef.h,
+      gx: 0,
+      gy: 0,
+      color: weaponDef.color,
+      tag: weaponDef.tag,
+      rarity: weaponDef.rarity
+    };
+    const savedAmmoCur = itemState?.ammoCur ?? ammoCur;
+    const savedAmmoMax = itemState?.ammoMax ?? ammoMax;
+    if (Number.isFinite(savedAmmoCur)) groundItem.ammoCur = savedAmmoCur;
+    if (Number.isFinite(savedAmmoMax)) groundItem.ammoMax = savedAmmoMax;
+    const groundContainer = {
+      id: groundItem.id,
+      name: groundItem.name,
+      type: 'weapon_drop',
+      x: player.x,
+      y: player.y,
+      gridW: weaponDef.w,
+      gridH: weaponDef.h,
+      items: [groundItem]
+    };
+
+    if (sourceContainer) {
+      sourceContainer.items.splice(sourceItemIndex, 1);
+    }
+    this.containers.set(groundContainer.id, groundContainer);
+    return groundContainer;
+  }
+
   enqueueInput(socketId, inputPayload) {
     const player = this.players.get(socketId);
     if (!player || !player.isAlive || player.extracted || this.state !== 'IN_RAID') return;

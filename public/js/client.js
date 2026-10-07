@@ -798,6 +798,17 @@ class GameClient {
     this.inventory.onContainerTransfer = (containerId, itemId, action, targetItem) => {
       this.network.send('transferContainerItem', { containerId, itemId, action, targetItem });
     };
+    this.inventory.onDropWeapon = (item, sourceContainerId) => {
+      if (!this.isInRaid || !this.network.isConnected) return false;
+      this.network.send('dropWeapon', {
+        itemId: item.id,
+        weaponType: item.weaponType || item.id,
+        sourceContainerId,
+        ammoCur: item.ammoCur,
+        ammoMax: item.ammoMax
+      });
+      return true;
+    };
 
     // Death modal acknowledgement
     this.dom.btnDeathOk?.addEventListener('click', () => {
@@ -1476,11 +1487,12 @@ class GameClient {
 
     // 5. PROXIMITY CHECK (Containers & Dead Scav Corpses)
     this.nearbyContainer = null;
+    let nearestContainerDistance = Infinity;
     for (const c of this.containers) {
       const dist = Math.hypot(this.localPlayer.x - c.x, this.localPlayer.y - c.y);
-      if (dist < 56) {
+      if (dist < 56 && dist < nearestContainerDistance) {
         this.nearbyContainer = c;
-        break;
+        nearestContainerDistance = dist;
       }
     }
 

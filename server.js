@@ -320,6 +320,28 @@ function handleClientMessage(socketId, message, sendFn) {
       break;
     }
 
+    case 'dropWeapon': {
+      const room = roomManager.getRoomBySocket(socketId);
+      if (room && data?.itemId && data?.weaponType) {
+        const groundContainer = room.dropWeapon(
+          socketId,
+          data.itemId,
+          data.weaponType,
+          data.sourceContainerId,
+          data.ammoCur,
+          data.ammoMax
+        );
+        if (groundContainer && data.sourceContainerId) {
+          const updated = room.getContainerData(data.sourceContainerId);
+          broadcastToRoom(room.code, {
+            type: 'containerUpdated',
+            data: updated
+          });
+        }
+      }
+      break;
+    }
+
     case 'input': {
       const room = roomManager.getRoomBySocket(socketId);
       if (room && data) {
