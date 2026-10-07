@@ -12,6 +12,17 @@ import { TILE_TYPES } from '/shared/map.js';
 import { PHYSICS_CONFIG } from '/shared/physics.js';
 import { WEAPON_REGISTRY } from '/shared/weapons.js';
 
+const CARRIED_WEAPON_STYLES = {
+  akm: { length: 43, body: '#252321', furniture: '#70452b', mag: '#282624' },
+  scarh: { length: 46, body: '#343a32', furniture: '#555b50', mag: '#242822' },
+  mdr: { length: 38, body: '#363932', furniture: '#4a5046', mag: '#292d28' },
+  mp7: { length: 29, body: '#343941', furniture: '#252a31', mag: '#252a31' },
+  p90: { length: 32, body: '#50534b', furniture: '#41443e', mag: '#30332f' },
+  ump45: { length: 34, body: '#292e34', furniture: '#3b4149', mag: '#22272c' },
+  sv98: { length: 49, body: '#252a2c', furniture: '#68472e', mag: '#24282a' },
+  m1911: { length: 23, body: '#22262b', furniture: '#30363c', mag: '#171a1e' }
+};
+
 export class TacticalRenderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -848,6 +859,22 @@ export class TacticalRenderer {
       const weaponType = weapon?.weaponType || weapon?.id;
       const weaponDef = WEAPON_REGISTRY[weaponType];
       this._renderGroundWeapon(ctx, weaponType, weaponDef);
+    } else if (c.type === 'item_drop') {
+      const item = c.items?.[0];
+      const color = item?.color || '#7f8c8d';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(0, 5, 13, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#293238';
+      ctx.fillRect(-9, -7, 18, 13);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-9, -7, 18, 13);
+      ctx.fillStyle = color;
+      ctx.font = 'bold 8px Consolas, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText((item?.tag || 'ITEM').slice(0, 4), 0, 2);
     } else if (c.type === 'crate_military') {
       ctx.fillStyle = '#253528';
       ctx.fillRect(-18, -12, 36, 24);
@@ -947,6 +974,74 @@ export class TacticalRenderer {
         ctx.fillStyle = metal;
         ctx.fillRect(12, -1, 16, 2);
         ctx.fillRect(-8, -7, 16, 2);
+        break;
+      case 'akm':
+        polygon([[-30, -4], [-18, -6], [-10, -3], [-12, 3], [-24, 4], [-31, 2]], '#815735');
+        polygon([[-14, -5], [8, -4], [13, -1], [10, 4], [-14, 4]], dark);
+        polygon([[-4, 3], [4, 4], [8, 14], [2, 15], [-3, 7]], '#75472c');
+        ctx.fillStyle = metal;
+        ctx.fillRect(12, -2, 18, 4);
+        polygon([[1, 4], [7, 4], [12, 12], [6, 14]], accent);
+        break;
+      case 'mdr':
+        polygon([[-24, -5], [-7, -6], [-3, -3], [-5, 4], [-22, 4]], '#7a674c');
+        polygon([[-8, -5], [8, -5], [13, -2], [12, 4], [-8, 4]], dark);
+        polygon([[-4, 3], [2, 4], [4, 14], [-2, 14]], '#6d5b43');
+        ctx.fillStyle = metal;
+        ctx.fillRect(12, -2, 19, 4);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-16, -7, 8, 2);
+        break;
+      case 'scarh':
+        polygon([[-30, -4], [-19, -5], [-12, -3], [-13, 4], [-27, 5], [-32, 1]], '#a17f4f');
+        polygon([[-13, -5], [8, -5], [14, -2], [12, 4], [-14, 4]], '#4a514b');
+        polygon([[-4, 3], [3, 4], [5, 13], [-1, 13]], '#8f734b');
+        ctx.fillStyle = metal;
+        ctx.fillRect(13, -2, 19, 4);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-3, -7, 7, 2);
+        break;
+      case 'mp7':
+        polygon([[-20, -5], [-8, -6], [-4, -3], [-5, 4], [-20, 4]], '#484d4c');
+        polygon([[-8, -4], [10, -4], [14, 0], [10, 4], [-8, 4]], dark);
+        ctx.fillStyle = metal;
+        ctx.fillRect(12, -2, 16, 4);
+        polygon([[-2, 3], [4, 4], [4, 12], [-2, 11]], '#353b3a');
+        ctx.fillStyle = accent;
+        ctx.fillRect(-5, -7, 8, 2);
+        break;
+      case 'p90':
+        polygon([[-23, -6], [8, -6], [13, -3], [12, 5], [-23, 5], [-27, 1]], '#343d40');
+        polygon([[-5, 3], [2, 4], [2, 12], [-4, 11]], '#252c30');
+        ctx.fillStyle = accent;
+        ctx.fillRect(-19, -4, 18, 2);
+        ctx.fillStyle = metal;
+        ctx.fillRect(12, -2, 18, 4);
+        break;
+      case 'ump45':
+        polygon([[-23, -4], [-13, -5], [-8, -2], [-10, 4], [-22, 4], [-26, 1]], '#414747');
+        polygon([[-12, -5], [9, -4], [13, 0], [9, 4], [-12, 4]], dark);
+        polygon([[-2, 3], [5, 4], [7, 12], [1, 13]], '#3e4547');
+        ctx.fillStyle = metal;
+        ctx.fillRect(11, -2, 17, 4);
+        polygon([[4, 4], [9, 4], [11, 13], [6, 14]], accent);
+        break;
+      case 'sv98':
+        polygon([[-32, -4], [-20, -6], [-9, -4], [5, -4], [10, 0], [5, 4], [-20, 5], [-31, 2]], '#657853');
+        ctx.fillStyle = metal;
+        ctx.fillRect(7, -2, 24, 4);
+        ctx.fillRect(-4, -7, 13, 2);
+        ctx.fillStyle = accent;
+        ctx.fillRect(22, -3, 9, 6);
+        break;
+      case 'm1911':
+        polygon([[-15, -4], [8, -4], [12, -2], [12, 2], [4, 3], [2, 11], [-4, 12], [-7, 3], [-15, 2]], '#403f39');
+        ctx.fillStyle = metal;
+        ctx.fillRect(11, -2, 11, 4);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-12, -5, 12, 2);
+        ctx.fillStyle = '#191d1e';
+        ctx.fillRect(-4, 3, 5, 7);
         break;
       case 'asval':
         polygon([[-25, -3], [-17, -5], [-11, -3], [-12, 3], [-21, 4], [-26, 2]], dark);
@@ -1694,6 +1789,37 @@ export class TacticalRenderer {
       ctx.fillRect(26, -1, 16, 2);
       ctx.fillStyle = '#3d4652';
       ctx.fillRect(42, -1.5, 3, 3); // Hooded front sight
+    } else if (CARRIED_WEAPON_STYLES[wep]) {
+      const style = CARRIED_WEAPON_STYLES[wep];
+      muzzleOffset = style.length;
+      ctx.fillStyle = style.furniture;
+      ctx.fillRect(1, -2, wep === 'sv98' ? 22 : 12, 4);
+      ctx.fillStyle = style.body;
+      ctx.fillRect(wep === 'm1911' ? 6 : 10, -2.5, style.length - 15, 5);
+      ctx.fillStyle = style.mag;
+      if (wep === 'akm') {
+        ctx.beginPath();
+        ctx.moveTo(12, 2); ctx.lineTo(16, 2); ctx.lineTo(18, 9); ctx.lineTo(14, 9);
+        ctx.closePath();
+        ctx.fill();
+      } else if (wep === 'p90') {
+        ctx.fillRect(12, -5, 14, 3);
+        ctx.fillRect(13, 2, 7, 3);
+      } else if (wep === 'sv98') {
+        ctx.fillRect(15, -6, 11, 3);
+        ctx.fillRect(15, 2, 4, 5);
+      } else if (wep === 'm1911') {
+        ctx.fillRect(9, 2, 3, 5);
+        ctx.fillRect(6, -1, 3, 2);
+      } else {
+        ctx.fillRect(wep === 'mdr' ? 12 : 14, 2, wep === 'scarh' ? 5 : 4, wep === 'mp7' ? 6 : 8);
+      }
+      if (wep === 'mp7' || wep === 'ump45') {
+        ctx.fillStyle = '#161a1f';
+        ctx.fillRect(10, 2, 3, 6);
+      }
+      ctx.fillStyle = '#15191d';
+      ctx.fillRect(style.length - 5, -1.5, 5, 3);
     } else {
       // Colt M4A1 5.56x45 NATO Carbine
       muzzleOffset = 38;

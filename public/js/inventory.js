@@ -46,7 +46,7 @@ export class GridInventory {
 
     this.viewMode = 'GEAR'; // 'GEAR' | 'CONTAINER_LOOT' | 'OUT_OF_RAID_STASH'
     this.onContainerTransfer = null;
-    this.onDropWeapon = null;
+    this.onDropItem = null;
     this.onStashClosed = null;
     this.onEquipmentChanged = null;
 
@@ -500,7 +500,7 @@ export class GridInventory {
     this._positionGhost(mouseEvent.clientX, mouseEvent.clientY);
 
     this._renderItemsOnly();
-    const dropHint = isWeaponItem(item) && this.viewMode !== 'OUT_OF_RAID_STASH'
+    const dropHint = this.viewMode !== 'OUT_OF_RAID_STASH'
       ? ' &bull; [G] OR DRAG OUTSIDE TO DROP'
       : '';
     this._setStatus(`HOLDING: ${item.name} (${item.w}x${item.h}) &bull; [R] ROTATE &bull; CLICK TO PLACE${dropHint}`);
@@ -812,16 +812,16 @@ export class GridInventory {
     this._setStatus(`ACTION CANCELLED: ITEM RETURNED`);
   }
 
-  _dropHeldWeapon() {
+  _dropHeldItem() {
     const item = this.heldItem;
-    if (!item || !isWeaponItem(item) || this.viewMode === 'OUT_OF_RAID_STASH' || !this.onDropWeapon) return false;
+    if (!item || this.viewMode === 'OUT_OF_RAID_STASH' || !this.onDropItem) return false;
 
     const originalGridId = this.heldOriginal.gridId;
     const itemIndex = this.items.indexOf(item);
     if (itemIndex === -1) return false;
 
     const sourceContainerId = originalGridId.startsWith('container_') ? this.activeContainer?.id : null;
-    if (!this.onDropWeapon(item, sourceContainerId)) return false;
+    if (!this.onDropItem(item, sourceContainerId)) return false;
 
     this.items.splice(itemIndex, 1);
 
@@ -1135,8 +1135,8 @@ export class GridInventory {
         e.clientX < rect.left || e.clientX > rect.right ||
         e.clientY < rect.top || e.clientY > rect.bottom
       );
-      if (outsideInventory && isWeaponItem(this.heldItem) && this.viewMode !== 'OUT_OF_RAID_STASH') {
-        if (!this._dropHeldWeapon()) this._cancelHold();
+      if (outsideInventory && this.viewMode !== 'OUT_OF_RAID_STASH') {
+        if (!this._dropHeldItem()) this._cancelHold();
         return;
       }
       if (this.hoverTarget) {
@@ -1165,10 +1165,10 @@ export class GridInventory {
         e.stopPropagation();
         this.rotateHeldItem();
       } else if (e.code === 'KeyG' && this.overlay.classList.contains('active') &&
-                 this.heldItem && isWeaponItem(this.heldItem) && this.viewMode !== 'OUT_OF_RAID_STASH') {
+                 this.heldItem && this.viewMode !== 'OUT_OF_RAID_STASH') {
         e.preventDefault();
         e.stopImmediatePropagation();
-        this._dropHeldWeapon();
+        this._dropHeldItem();
       }
     });
   }

@@ -570,16 +570,17 @@ function handleClientMessage(socketId, message, sendFn) {
       break;
     }
 
+    case 'dropItem':
     case 'dropWeapon': {
       const room = roomManager.getRoomBySocket(socketId);
-      if (room && data?.itemId && data?.weaponType) {
-        const groundContainer = room.dropWeapon(
+      const itemKey = data?.itemKey || data?.weaponType;
+      if (room && data?.itemId && itemKey) {
+        const groundContainer = room.dropItem(
           socketId,
           data.itemId,
-          data.weaponType,
+          itemKey,
           data.sourceContainerId,
-          data.ammoCur,
-          data.ammoMax
+          data.itemState || data
         );
         if (groundContainer && data.sourceContainerId) {
           const updated = room.getContainerData(data.sourceContainerId);
@@ -588,6 +589,14 @@ function handleClientMessage(socketId, message, sendFn) {
             data: updated || { id: data.sourceContainerId }
           });
         }
+      }
+      break;
+    }
+
+    case 'throwGrenade': {
+      const room = roomManager.getRoomBySocket(socketId);
+      if (room && data?.grenadeKey && Number.isFinite(data.angle)) {
+        room.throwPlayerGrenade(socketId, data.grenadeKey, data.angle);
       }
       break;
     }

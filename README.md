@@ -55,8 +55,11 @@ Map tiles are populated with interactive loot entities across all 3 maps:
   - **Wooden Ammo Boxes** ($2\times 2$ grid): 5.45x39 BT, 5.56x45 M855, 9x19 Pst gzh ammunition.
   - **SMU Medical Bags** ($2\times 2$ grid): Salewa First Aid (400 HP), IFAK, Morphine injectors, and splints.
 - **Proximity HUD Interaction**: When standing within 1.75 tiles of a container, the canvas displays a `[F] SEARCH` prompt.
-- **Search Risk**: Rummaging produces noise that nearby Scavs investigate. Sprinting and gunfire also draw attention.
+- **Hardcore Search Risk**: Rummaging produces noise that nearby Scavs investigate. Most caches are empty; weapons, medicine, armor, valuables, and grenades are scarce, with premium gear exceptionally rare.
 - **Expanded Routes**: Each map has nine fixed loot sites distributed across its major areas, with different crate, ammo, and medical-cache layouts.
+- **Expanded Arsenal**: AKM, SCAR-H, MDR, MP7, P90, UMP45, SV-98, and M1911 join the existing weapons, with compatible magazines and ammunition.
+- **Throwable Grenades**: Rare F-1, RGD-5, and M67 fragmentation grenades can be thrown with `[3]`. Their blast can kill at close range; walls reduce blast damage.
+- **Discard Any Item**: Hold any carried item and press `[G]` or drag it outside the inventory to leave it on the ground for anyone to loot. Stash items cannot be dropped.
 - **Split Container Looting Grid**:
   - Pressing `[F]` opens a split interface: Container contents on the left, player rig and backpack on the right.
   - Drag and drop or **Shift-click** to instantly transfer loot between container and gear.
@@ -117,6 +120,8 @@ Map tiles are populated with interactive loot entities across all 3 maps:
 | `R` | Tactical Reload / Rotate | Reloads weapon; in inventory, **rotates held item** |
 | `Double-Tap R` | Emergency Fast Reload | Rapid drop-mag reload |
 | `F` | Interact / Loot / Extract | Searches nearby containers (crates, corpses, bags); initiates extraction |
+| `3` | Throw Grenade | Throws a carried fragmentation grenade toward your aim |
+| `G` | Discard Held Item | In the raid inventory, drop any held item onto the floor |
 | `Shift + Click` | Fast Loot Transfer | Quickly moves item between container and player inventory |
 | `Tab` | Toggle Gear Matrix | Opens the in-raid Tetris inventory |
 | `Escape` | Close Menus / Cancel | Closes inventory, loot screen, or cancels held items |

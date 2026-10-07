@@ -91,6 +91,7 @@ class GameClient {
 
     this.bullets = [];
     this.grenades = [];
+    this.grenadeThrowCooldownUntil = 0;
     this.currentSpread = 0.012;
     this.spreadBloom = 0;
     this.lastFootstepTime = 0;
@@ -427,6 +428,33 @@ class GameClient {
     }, 2800);
   }
 
+  _throwGrenade() {
+    if (!this.isInRaid || !this.localPlayer.isAlive || !this.network.isConnected ||
+        this.inventory.overlay.classList.contains('active') ||
+        performance.now() < this.grenadeThrowCooldownUntil) return;
+
+    const carriedGrids = new Set(['rig', 'pockets', 'backpack', 'alpha']);
+    const grenadeIndex = this.inventory.items.findIndex(item =>
+      item.type === 'grenade' && item.grenadeType && carriedGrids.has(item.gridId)
+    );
+    if (grenadeIndex === -1) {
+      audioEngine.playEmptyClick();
+      this._showTacticalAlert('NO GRENADE CARRIED');
+      return;
+    }
+
+    const grenade = this.inventory.items[grenadeIndex];
+    this.network.send('throwGrenade', {
+      grenadeKey: grenade.itemKey || grenade.weaponType || grenade.id,
+      angle: this.localPlayer.angle
+    });
+    this.grenadeThrowCooldownUntil = performance.now() + 1000;
+    this.inventory.items.splice(grenadeIndex, 1);
+    this.inventory._renderItemsOnly();
+    this._initWeaponsFromProfile();
+    this._showTacticalAlert(`GRENADE THROWN: ${grenade.name.toUpperCase()}`);
+  }
+
   _useMedicalItem(type) {
     if (!this.isInRaid || !this.localPlayer.isAlive) return;
 
@@ -737,6 +765,9 @@ class GameClient {
     this.input.onUseMed = (type) => {
       this._useMedicalItem(type);
     };
+    this.input.onThrowGrenade = () => {
+      this._throwGrenade();
+    };
 
     this.input.onToggleBinds = () => {
       this._toggleKeybindsDisplay();
@@ -852,14 +883,13 @@ class GameClient {
     this.inventory.onContainerTransfer = (containerId, itemId, action, targetItem) => {
       this.network.send('transferContainerItem', { containerId, itemId, action, targetItem });
     };
-    this.inventory.onDropWeapon = (item, sourceContainerId) => {
+    this.inventory.onDropItem = (item, sourceContainerId) => {
       if (!this.isInRaid || !this.network.isConnected) return false;
-      this.network.send('dropWeapon', {
+      this.network.send('dropItem', {
         itemId: item.id,
-        weaponType: item.weaponType || item.id,
+        itemKey: item.weaponType || item.itemKey || item.id,
         sourceContainerId,
-        ammoCur: item.ammoCur,
-        ammoMax: item.ammoMax
+        itemState: item
       });
       return true;
     };
