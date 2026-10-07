@@ -552,6 +552,9 @@ export class GameRoom {
       const idx = container.items.findIndex(it => it.id === itemId);
       if (idx !== -1) {
         container.items.splice(idx, 1);
+        if (container.type === 'weapon_drop' && container.items.length === 0) {
+          this.containers.delete(containerId);
+        }
         return true;
       }
     } else if (action === 'put' && targetItem) {
@@ -613,6 +616,9 @@ export class GameRoom {
 
     if (sourceContainer) {
       sourceContainer.items.splice(sourceItemIndex, 1);
+      if (sourceContainer.type === 'weapon_drop' && sourceContainer.items.length === 0) {
+        this.containers.delete(sourceContainerId);
+      }
     }
     this.containers.set(groundContainer.id, groundContainer);
     return groundContainer;

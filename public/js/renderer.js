@@ -10,6 +10,7 @@
 
 import { TILE_TYPES } from '/shared/map.js';
 import { PHYSICS_CONFIG } from '/shared/physics.js';
+import { WEAPON_REGISTRY } from '/shared/weapons.js';
 
 export class TacticalRenderer {
   constructor(canvas) {
@@ -727,17 +728,10 @@ export class TacticalRenderer {
     ctx.translate(c.x, c.y);
 
     if (c.type === 'weapon_drop') {
-      ctx.rotate(-0.18);
-      ctx.fillStyle = '#20272b';
-      ctx.fillRect(-16, -4, 24, 8);
-      ctx.fillRect(7, -2, 11, 3);
-      ctx.fillRect(-8, 3, 5, 8);
-      ctx.fillStyle = '#d4a359';
-      ctx.fillRect(-13, -6, 8, 2);
-      ctx.fillStyle = '#f1c40f';
-      ctx.font = 'bold 8px Consolas, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('WEAPON', 0, -11);
+      const weapon = c.items?.[0];
+      const weaponType = weapon?.weaponType || weapon?.id;
+      const weaponDef = WEAPON_REGISTRY[weaponType];
+      this._renderGroundWeapon(ctx, weaponType, weaponDef);
     } else if (c.type === 'crate_military') {
       ctx.fillStyle = '#253528';
       ctx.fillRect(-18, -12, 36, 24);
@@ -796,6 +790,167 @@ export class TacticalRenderer {
       ctx.fillRect(-5, -2, 10, 4);
     }
 
+    ctx.restore();
+  }
+
+  _renderGroundWeapon(ctx, weaponType, weaponDef) {
+    const color = weaponDef?.color || '#95a5a6';
+    const dark = '#20272b';
+    const metal = '#687681';
+    const accent = color;
+    const polygon = (points, fill) => {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.moveTo(points[0][0], points[0][1]);
+      for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+      ctx.closePath();
+      ctx.fill();
+    };
+
+    ctx.save();
+    ctx.rotate(-0.18);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 29, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    switch (weaponType) {
+      case 'm4a1':
+        polygon([[-27, -4], [-19, -5], [-13, -3], [-13, 3], [-21, 4], [-27, 2]], '#48513e');
+        ctx.fillStyle = dark;
+        ctx.fillRect(-14, -4, 25, 8);
+        polygon([[-1, 3], [5, 4], [3, 13], [-2, 12]], '#48513e');
+        ctx.fillStyle = metal;
+        ctx.fillRect(10, -2, 15, 4);
+        ctx.fillRect(-9, -7, 12, 2);
+        break;
+      case 'ak74m':
+        polygon([[-28, -4], [-18, -5], [-11, -3], [-12, 3], [-22, 4], [-28, 2]], '#8b623b');
+        polygon([[-15, -5], [8, -4], [13, -1], [10, 4], [-14, 4]], dark);
+        polygon([[-4, 3], [3, 4], [8, 12], [2, 14], [-2, 7]], '#8b623b');
+        ctx.fillStyle = metal;
+        ctx.fillRect(12, -1, 16, 2);
+        ctx.fillRect(-8, -7, 16, 2);
+        break;
+      case 'asval':
+        polygon([[-25, -3], [-17, -5], [-11, -3], [-12, 3], [-21, 4], [-26, 2]], dark);
+        polygon([[-14, -4], [11, -4], [15, 0], [11, 4], [-14, 4]], '#263a34');
+        polygon([[-2, 3], [5, 4], [3, 12], [-2, 11]], dark);
+        ctx.fillStyle = '#59635e';
+        ctx.fillRect(12, -4, 15, 8);
+        ctx.fillStyle = accent;
+        ctx.fillRect(16, -3, 2, 6);
+        ctx.fillRect(21, -3, 2, 6);
+        break;
+      case 'vss':
+        polygon([[-25, -3], [-18, -5], [-12, -3], [-13, 3], [-22, 4], [-26, 1]], '#53624b');
+        polygon([[-15, -4], [9, -3], [13, 0], [9, 4], [-15, 4]], dark);
+        polygon([[-2, 3], [4, 4], [2, 11], [-3, 10]], '#53624b');
+        ctx.fillStyle = '#737f77';
+        ctx.fillRect(11, -4, 16, 8);
+        ctx.fillStyle = '#26332e';
+        for (let x = 14; x < 27; x += 4) ctx.fillRect(x, -3, 1, 6);
+        break;
+      case 'vector':
+        polygon([[-21, -4], [-14, -5], [-10, -2], [-12, 4], [-20, 4], [-24, 1]], '#45414d');
+        polygon([[-12, -5], [9, -5], [14, -2], [11, 4], [-12, 4]], dark);
+        polygon([[-1, 3], [5, 4], [12, 12], [7, 14], [0, 7]], '#45414d');
+        polygon([[9, -2], [28, -2], [28, 2], [10, 2]], metal);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-7, -3, 5, 2);
+        break;
+      case 'mpx':
+        polygon([[-25, -3], [-17, -5], [-12, -3], [-13, 3], [-23, 3], [-27, 1]], '#3e4449');
+        ctx.fillStyle = dark;
+        ctx.fillRect(-15, -4, 25, 8);
+        polygon([[-3, 3], [4, 4], [3, 13], [-2, 12]], '#3e4449');
+        ctx.fillStyle = metal;
+        ctx.fillRect(10, -2, 17, 4);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-5, -6, 8, 2);
+        break;
+      case 'saiga12':
+        polygon([[-27, -3], [-19, -5], [-12, -3], [-13, 3], [-22, 3], [-28, 1]], '#73553d');
+        polygon([[-14, -4], [10, -4], [14, 0], [10, 4], [-14, 4]], '#353b3e');
+        ctx.fillStyle = '#70797c';
+        ctx.fillRect(12, -2, 18, 4);
+        ctx.fillStyle = '#4b5254';
+        ctx.fillRect(-7, 5, 15, 3);
+        ctx.fillStyle = accent;
+        ctx.fillRect(22, -3, 5, 6);
+        break;
+      case 'mp5':
+        polygon([[-26, -4], [-16, -5], [-12, -2], [-13, 3], [-22, 4], [-28, 1]], '#4d514a');
+        polygon([[-14, -5], [9, -4], [14, 0], [9, 4], [-14, 4]], '#30373a');
+        polygon([[-3, 3], [4, 4], [5, 12], [0, 13], [-2, 7]], '#343a38');
+        ctx.fillStyle = metal;
+        ctx.fillRect(11, -2, 17, 4);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-5, -6, 8, 2);
+        break;
+      case 'mosin':
+        polygon([[-30, -3], [-20, -5], [-10, -4], [10, -3], [15, 0], [9, 4], [-18, 5], [-28, 3]], '#8a6039');
+        ctx.fillStyle = metal;
+        ctx.fillRect(-7, -2, 35, 4);
+        ctx.fillRect(-3, -5, 2, 8);
+        ctx.fillStyle = dark;
+        ctx.fillRect(-2, -6, 5, 2);
+        ctx.fillStyle = accent;
+        ctx.fillRect(24, -3, 5, 6);
+        break;
+      case 'rpk16':
+        polygon([[-29, -4], [-18, -5], [-12, -3], [-13, 3], [-24, 4], [-30, 1]], '#46513b');
+        polygon([[-15, -5], [12, -4], [15, 0], [11, 4], [-15, 4]], dark);
+        ctx.fillStyle = metal;
+        ctx.fillRect(13, -2, 19, 4);
+        polygon([[-3, 3], [5, 4], [8, 12], [2, 14], [-2, 7]], '#46513b');
+        ctx.fillStyle = '#343b3d';
+        ctx.beginPath();
+        ctx.ellipse(0, 7, 6, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = metal;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(18, 3);
+        ctx.lineTo(15, 11);
+        ctx.moveTo(26, 3);
+        ctx.lineTo(29, 11);
+        ctx.stroke();
+        break;
+      case 'goldentt':
+        polygon([[-15, -4], [8, -4], [13, -2], [14, 2], [5, 3], [4, 11], [-3, 12], [-7, 3], [-15, 2]], '#ad8530');
+        ctx.fillStyle = '#f3cd56';
+        ctx.fillRect(13, -2, 10, 4);
+        ctx.fillRect(-12, -5, 10, 2);
+        ctx.fillStyle = '#604c26';
+        ctx.fillRect(-3, 3, 5, 6);
+        break;
+      case 'glock17':
+        polygon([[-14, -4], [8, -4], [12, -2], [13, 2], [5, 3], [4, 12], [-4, 13], [-8, 3], [-14, 2]], '#333b40');
+        ctx.fillStyle = metal;
+        ctx.fillRect(11, -2, 11, 4);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-11, -5, 14, 2);
+        ctx.fillStyle = '#171d20';
+        ctx.fillRect(-4, 4, 5, 7);
+        break;
+      case 'melee':
+        polygon([[-20, -3], [-12, -4], [-8, -2], [-8, 2], [-14, 4], [-21, 2]], '#71503b');
+        polygon([[-8, -2], [17, -3], [28, 0], [17, 3], [-8, 2]], '#bac4c7');
+        ctx.fillStyle = accent;
+        ctx.fillRect(-10, -4, 3, 8);
+        ctx.fillStyle = '#eef2f3';
+        ctx.fillRect(10, -1, 12, 1);
+        break;
+      default:
+        ctx.fillStyle = dark;
+        ctx.fillRect(-18, -4, 34, 8);
+        ctx.fillStyle = metal;
+        ctx.fillRect(14, -2, 15, 4);
+    }
+
+    ctx.fillStyle = '#101518';
+    ctx.fillRect(-2, -2, 4, 1);
     ctx.restore();
   }
 

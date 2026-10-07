@@ -923,20 +923,24 @@ class GameClient {
       this.animFrameId = requestAnimationFrame((t) => this.loop(t));
     };
 
-    // Teammate Container Loot updates
-    this.network.socket?.addEventListener('message', (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'containerUpdated' && msg.data) {
-          const idx = this.containers.findIndex(c => c.id === msg.data.id);
-          if (idx !== -1) this.containers[idx] = msg.data;
-          if (this.inventory.activeContainer?.id === msg.data.id) {
-            this.inventory.activeContainer = msg.data;
-            this.inventory._renderItemsOnly();
-          }
-        }
-      } catch (e) {}
-    });
+    this.network.onContainerUpdated = (container) => {
+      if (!container) return;
+      const idx = this.containers.findIndex(c => c.id === container.id);
+      if (idx !== -1) this.containers[idx] = container;
+      if (this.inventory.activeContainer?.id === container.id) {
+        this.inventory.activeContainer = container;
+        this.inventory._renderItemsOnly();
+      }
+    };
+
+    this.network.onContainerRemoved = (data) => {
+      if (!data?.id) return;
+      this.containers = this.containers.filter(c => c.id !== data.id);
+      if (this.inventory.activeContainer?.id === data.id) {
+        this.inventory.activeContainer.items = [];
+        this.inventory._renderItemsOnly();
+      }
+    };
 
     this.network.onSnapshot = (snapshot) => {
       this._handleServerSnapshot(snapshot);

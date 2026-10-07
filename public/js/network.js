@@ -14,6 +14,8 @@ export class NetworkClient {
     this.onLobbyUpdate = null;
     this.onRaidStarted = null;
     this.onSnapshot = null;
+    this.onContainerUpdated = null;
+    this.onContainerRemoved = null;
     this.onDisconnect = null;
 
     this.pingInterval = null;
@@ -93,6 +95,14 @@ export class NetworkClient {
 
       case 'snapshot':
         if (this.onSnapshot) this.onSnapshot(data);
+        break;
+
+      case 'containerUpdated':
+        if (this.onContainerUpdated) this.onContainerUpdated(data);
+        break;
+
+      case 'containerRemoved':
+        if (this.onContainerRemoved) this.onContainerRemoved(data);
         break;
 
       case 'pong':

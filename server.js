@@ -309,12 +309,18 @@ function handleClientMessage(socketId, message, sendFn) {
           data.targetItem
         );
         if (success) {
-          // Broadcast updated container state to all squad members
           const updated = room.getContainerData(data.containerId);
-          broadcastToRoom(room.code, {
-            type: 'containerUpdated',
-            data: updated
-          });
+          if (updated) {
+            broadcastToRoom(room.code, {
+              type: 'containerUpdated',
+              data: updated
+            });
+          } else {
+            broadcastToRoom(room.code, {
+              type: 'containerRemoved',
+              data: { id: data.containerId }
+            });
+          }
         }
       }
       break;
@@ -334,8 +340,8 @@ function handleClientMessage(socketId, message, sendFn) {
         if (groundContainer && data.sourceContainerId) {
           const updated = room.getContainerData(data.sourceContainerId);
           broadcastToRoom(room.code, {
-            type: 'containerUpdated',
-            data: updated
+            type: updated ? 'containerUpdated' : 'containerRemoved',
+            data: updated || { id: data.sourceContainerId }
           });
         }
       }
