@@ -1319,13 +1319,14 @@ export class TacticalRenderer {
     const angle = player.angle || 0;
     const squadColor = player.color || '#2ecc71';
     const isFiring = !!player.isFiring;
+    const isUnarmed = !player.activeWeaponType || player.activeWeaponType === 'none';
 
     ctx.save();
     ctx.translate(px, py);
 
     const device = player.tacticalDevice || (isLocal ? 'LASER' : 'OFF');
 
-    if (device === 'LASER') {
+    if (device === 'LASER' && !isUnarmed) {
       ctx.save();
       ctx.rotate(angle);
       ctx.beginPath();
@@ -1672,6 +1673,27 @@ export class TacticalRenderer {
     }
 
     ctx.restore();
+
+    if (device === 'LASER' && isUnarmed) {
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(angle);
+      ctx.strokeStyle = 'rgba(231, 76, 60, 0.75)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(17, -4);
+      ctx.lineTo(380, -4);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(380, -4, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff3838';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(17, -4, 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff3838';
+      ctx.fill();
+      ctx.restore();
+    }
 
     // Overhead Callsign
     ctx.save();
