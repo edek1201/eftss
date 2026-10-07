@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ESCAPE FROM TARKOV 2D - HARDCORE EXTRACTION SIMULATOR</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="game-container">
+    <!-- Dynamic Tactical Viewport Canvas -->
+    <canvas id="mainCanvas"></canvas>
+
+    <!-- 1. OPERATOR INITIALIZATION MODAL (FIRST TIME VISIT) -->
+    <div class="overlay-screen" id="init-operator-modal" style="display: none;">
+      <div class="terminal-box">
+        <div class="terminal-header">
+          <div class="terminal-title">BATTLESTATE TERMINAL &bull; OPERATOR ENLISTMENT</div>
+          <div class="terminal-sub">IDENTIFICATION PROTOCOL v0.14.2</div>
+        </div>
+
+        <div class="terminal-body">
+          <p style="color: var(--text-muted); line-height: 1.5; margin-bottom: 16px;">
+            Welcome to the Norvinsk Special Economic Zone. Establish your mercenary credentials to access the hideout and persistent stash.
+          </p>
+
+          <div class="form-group">
+            <label for="input-init-callsign">PMC CALLSIGN / NICKNAME:</label>
+            <input type="text" id="input-init-callsign" value="USEC_Ghost" maxlength="16" autofocus>
+          </div>
+
+          <div class="form-group" style="margin-top: 12px;">
+            <label for="select-init-faction">PMC FACTION:</label>
+            <select id="select-init-faction" class="tarkov-select">
+              <option value="USEC">USEC (United Security LLC - Western Private Military)</option>
+              <option value="BEAR">BEAR (Battle Encounter Assault Regiment - Russian Federation)</option>
+            </select>
+          </div>
+
+          <button class="btn-deploy" id="btn-init-confirm" style="margin-top: 24px; width: 100%;">
+            ENLIST OPERATOR (CREATE SAVE)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. MAIN HIDEOUT & RAID DISPATCH HUB (AUTO-LOGIN SCREEN) -->
+    <div class="overlay-screen" id="hideout-screen" style="display: none;">
+      <div class="hideout-container">
+        <!-- Top Command Header: Operator Info, Currency & Stats -->
+        <div class="hideout-top-bar">
+          <div class="operator-dossier">
+            <div class="dossier-brand">NORVINSK ZONE &bull; PMC TACTICAL DISPATCH</div>
+            <div class="operator-name-row">
+              <span class="operator-name" id="hideout-operator-tag">USEC_Ghost</span>
+              <span class="badge-faction" id="hideout-faction-badge">USEC</span>
+            </div>
+            <div class="operator-balance">ROUBLES: <span id="hideout-roubles-val">500,000 ₽</span></div>
+          </div>
+
+          <div class="hideout-stats-row">
+            <div class="stat-pill"><span class="stat-num" id="hideout-stats-surv">0</span> SURVIVED</div>
+            <div class="stat-pill"><span class="stat-num" id="hideout-stats-raids">0</span> RAIDS</div>
+            <div class="stat-pill"><span class="stat-num" id="hideout-stats-kd">0% SR</span></div>
+            <button class="btn-stash-nav" id="btn-open-stash">
+              <span>&#9776; OPEN STASH & LOADOUT</span>
+            </button>
+            <button class="btn-stash-nav" id="btn-open-traders" style="background: rgba(212, 163, 89, 0.2); border-color: #d4a359; color: #d4a359;">
+              <span>🛒 TRADERS MARKET</span>
+            </button>
+            <button class="btn-subtle" id="btn-switch-account">LOGOUT</button>
+          </div>
+        </div>
+
+        <!-- Main Workspace -->
+        <div class="hideout-columns">
+          <!-- Left: Squad Networking & Loadout Preview -->
+          <div class="hideout-left">
+            <div class="room-setup-box">
+              <div class="section-label">SQUAD CO-OP EXTRACTION (1-4 OPERATORS)</div>
+              
+              <div class="form-group">
+                <label for="input-room-code">4-LETTER ROOM CODE:</label>
+                <div class="room-input-row">
+                  <input type="text" id="input-room-code" value="EFT1" maxlength="6" autocomplete="off" spellcheck="false">
+                  <button type="button" class="btn-code-gen" id="btn-gen-room-code" title="Generate Random Room Code">&#8635; RANDOM</button>
+                </div>
+              </div>
+
+              <div class="btn-row">
+                <button class="btn-host-action" id="btn-host-room">HOST SQUAD</button>
+                <button class="btn-secondary" id="btn-join-room">JOIN SQUAD</button>
+              </div>
+
+              <div class="squad-roster-box">
+                <div class="roster-title">SQUAD MEMBERS IN RAID LOBBY:</div>
+                <div class="roster-list" id="lobby-roster-list">
+                  <div class="roster-item">
+                    <span>USEC_Ghost (YOU)</span>
+                    <span class="badge-host">HOST</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Loadout Quick-Status Card -->
+            <div class="loadout-quick-card">
+              <div class="section-label">ACTIVE PMC WEAPON GEAR:</div>
+              <div class="quick-weapon-row">
+                <div class="quick-weapon-slot">
+                  <span class="slot-tag">[1] PRIMARY</span>
+                  <span class="slot-wep-title" id="lobby-primary-name">Colt M4A1 5.56x45</span>
+                </div>
+                <div class="quick-weapon-slot">
+                  <span class="slot-tag">[2] SIDEARM</span>
+                  <span class="slot-wep-title" id="lobby-secondary-name">Glock 17 9x19</span>
+                </div>
+              </div>
+              <button class="btn-stash-action" id="btn-open-stash-alt">
+                MANAGE 10x30 STASH & RIG INVENTORY
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: Map Selection & Deployment -->
+          <div class="hideout-right">
+            <div class="section-label">SELECT RAID LOCATION (REALISTIC SCALE):</div>
+            <div class="map-grid">
+              <!-- Map 1: Factory 80x80 -->
+              <div class="map-card selected" id="card-map-factory" data-map="factory">
+                <div class="map-card-tag">80x80 TILES (2560x2560 PX)</div>
+                <div class="map-card-name">FACTORY</div>
+                <div class="map-card-dims">Chemical Plant Complex &bull; 12 Scavs</div>
+                <div class="map-card-desc">Expanded CQB manufacturing plant: 3-story office wing, reactor hall, catwalks, catacombs, and pumping station.</div>
+              </div>
+
+              <!-- Map 2: Warehouse 120x120 -->
+              <div class="map-card" id="card-map-warehouse" data-map="warehouse">
+                <div class="map-card-tag">120x120 TILES (3840x3840 PX)</div>
+                <div class="map-card-name">CUSTOMS</div>
+                <div class="map-card-dims">Logistics Terminal &bull; 16 Scavs</div>
+                <div class="map-card-desc">Massive industrial terminal: freight rail line, multi-story dorms, construction sniper choke, and warehouses.</div>
+              </div>
+
+              <!-- Map 3: Bunker 100x100 -->
+              <div class="map-card" id="card-map-bunker" data-map="bunker">
+                <div class="map-card-tag">100x100 TILES (3200x3200 PX)</div>
+                <div class="map-card-name">RESERVE BUNKER</div>
+                <div class="map-card-dims">Command Bunker &bull; 14 Scavs</div>
+                <div class="map-card-desc">Deep subterranean command complex: hermetic blast doors, turbine halls, server vault, and D-2 extraction.</div>
+              </div>
+            </div>
+
+            <button class="btn-deploy" id="btn-deploy-squad" style="margin-top: 14px;">
+              DEPLOY SQUAD INTO RAID
+            </button>
+
+            <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5; margin-top: 8px;">
+              * Dynamic Field-of-View raycasting masks unrevealed rooms in darkness.<br>
+              * Bullets are stopped by solid concrete walls and obstacles.<br>
+              * Surviving the raid preserves carried loot. Death wipes non-secure equipped items.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. IN-RAID TACTICAL HUD -->
+    <div id="hud-overlay" style="display: none;">
+      <!-- Top HUD Bar -->
+      <div class="hud-top-bar">
+        <!-- 7-Zone Health Doll Mini -->
+        <div class="hud-panel health-doll-widget">
+          <div class="doll-title">
+            <span>HEALTH OVERVIEW</span>
+            <span id="hud-total-hp">440 / 440</span>
+          </div>
+          <div class="doll-container">
+            <div></div>
+            <div class="doll-zone zone-head" id="zone-head">HEAD<br><small>35</small></div>
+            <div></div>
+            <div class="doll-zone zone-larm" id="zone-larm">L.ARM<br><small>60</small></div>
+            <div class="doll-zone zone-thorax" id="zone-thorax">THORAX<br><small>85</small></div>
+            <div class="doll-zone zone-rarm" id="zone-rarm">R.ARM<br><small>60</small></div>
+            <div></div>
+            <div class="doll-zone zone-stomach" id="zone-stomach">STOMACH<br><small>70</small></div>
+            <div></div>
+            <div class="doll-zone zone-lleg" id="zone-lleg">L.LEG<br><small>65</small></div>
+            <div></div>
+            <div class="doll-zone zone-rleg" id="zone-rleg">R.LEG<br><small>65</small></div>
+          </div>
+        </div>
+
+        <!-- Raid Timer & Room Code -->
+        <div class="hud-panel raid-timer-box">
+          <div class="timer-label">RAID TIME REMAINING</div>
+          <div class="timer-value" id="hud-raid-timer">10:00</div>
+          <div class="room-badge">ZONE: <span id="hud-room-code">FACTORY</span></div>
+        </div>
+
+        <!-- Squad Status -->
+        <div class="hud-panel squad-widget">
+          <div class="squad-header">SQUAD MEMBERS (1-4)</div>
+          <div id="squad-member-list"></div>
+        </div>
+      </div>
+
+      <!-- Center Extraction Progress Banner -->
+      <div class="extract-banner" id="extract-banner">
+        <div class="extract-title" id="extract-zone-name">EXTRACTING FROM ZONE</div>
+        <div class="extract-bar-bg">
+          <div class="extract-bar-fill" id="extract-bar-fill"></div>
+        </div>
+        <div style="font-size: 10px; color: #a4b0be; margin-top: 4px;">HOLD POSITION & AVOID DAMAGE</div>
+      </div>
+
+      <!-- Bottom HUD Bar (NON-OVERLAPPING QUICKBAR & WEAPON STATUS) -->
+      <div class="hud-bottom-bar">
+        <div class="hud-panel stamina-widget">
+          <div class="stamina-header">
+            <span>STAMINA</span>
+            <span id="stamina-val">100%</span>
+          </div>
+          <div class="stamina-bar-container">
+            <div class="stamina-fill" id="stamina-fill"></div>
+          </div>
+          <div class="stance-indicator">
+            <div class="stance-badge active" id="badge-stand">STAND</div>
+            <div class="stance-badge" id="badge-sprint">SPRINT</div>
+            <div class="stance-badge" id="badge-crouch">CROUCH</div>
+            <div class="stance-badge" id="badge-ads">ADS</div>
+          </div>
+        </div>
+
+        <!-- QUICKBAR SLOTS (CLEARLY VISIBLE 1, 2, 4, 5) -->
+        <div class="quickbar-widget">
+          <div class="quick-slot active" id="slot-wep-1">
+            <span class="quick-key">1</span>
+            <span class="quick-label">PRIMARY<br><b id="slot-1-name">M4A1</b></span>
+          </div>
+          <div class="quick-slot" id="slot-wep-2">
+            <span class="quick-key">2</span>
+            <span class="quick-label">SIDEARM<br><b id="slot-2-name">GLOCK</b></span>
+          </div>
+          <div class="quick-slot" id="slot-med-4">
+            <span class="quick-key">4</span>
+            <span class="quick-label">BANDAGE<br><b id="slot-4-cnt">MEDIC</b></span>
+          </div>
+          <div class="quick-slot" id="slot-med-5">
+            <span class="quick-key">5</span>
+            <span class="quick-label">IFAK<br><b id="slot-5-cnt">HEAL</b></span>
+          </div>
+          <div class="quick-slot" id="slot-med-6">
+            <span class="quick-key">6</span>
+            <span class="quick-label">PAIN-RELIEF<br><b id="slot-6-cnt">BUFF</b></span>
+          </div>
+        </div>
+
+        <!-- ACTIVE WEAPON DISPLAY -->
+        <div class="hud-panel weapon-widget">
+          <div class="weapon-name" id="hud-weapon-name">COLT M4A1 5.56x45</div>
+          <div class="ammo-counter"><span id="hud-ammo-cur">30</span> / <span id="hud-ammo-max">30</span></div>
+          <div class="ammo-type" id="hud-ammo-type">5.56x45mm M855A1 AP</div>
+          <div class="weapon-substatus">
+            <div class="substatus-badge" id="badge-firemode">[AUTO] (B)</div>
+            <div class="substatus-badge highlight" id="badge-tactical">LASER ON (T)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TACTICAL CONTROLS HELPER (HIDEABLE, NEVER OVERLAPS QUICKBAR) -->
+    <div class="controls-help-modal" id="controls-help-modal">
+      <span><kbd>WASD</kbd> Move</span>
+      <span><kbd>Shift</kbd> Sprint</span>
+      <span><kbd>C</kbd> Crouch</span>
+      <span><kbd>RMB</kbd> ADS</span>
+      <span><kbd>LMB</kbd> Fire</span>
+      <span><kbd>1</kbd> Primary</span>
+      <span><kbd>2</kbd> Sidearm</span>
+      <span><kbd>4</kbd> Bandage</span>
+      <span><kbd>5</kbd> Medkit</span>
+      <span><kbd>6</kbd> Painkiller</span>
+      <span><kbd>B</kbd> Semi/Auto</span>
+      <span><kbd>R</kbd> Reload</span>
+      <span><kbd>F</kbd> Search/Extract</span>
+      <span><kbd>Tab</kbd> Gear</span>
+      <button class="btn-binds-toggle" id="btn-hide-binds">HIDE [H]</button>
+    </div>
+    <button class="btn-binds-pill" id="btn-show-binds" style="display: none;">CONTROLS [H]</button>
+
+    <!-- TRADERS MARKET OVERLAY SCREEN (z-index 450) -->
+    <div class="overlay-screen" id="traders-screen" style="display: none;"></div>
+
+    <!-- 4. HIGH-PERFORMANCE UNIFIED TETRIS GRID INVENTORY OVERLAY (z-index 500) -->
+    <div id="inventory-overlay">
+      <!-- Managed with cached grids in inventory.js -->
+    </div>
+
+    <!-- 5. KILLED IN ACTION (DEATH MODAL) -->
+    <div class="overlay-screen" id="death-modal" style="display: none;">
+      <div class="death-box">
+        <div class="death-title">KILLED IN ACTION (MIA)</div>
+        <div class="death-sub">YOUR OPERATOR HAS PERISHED IN THE NORVINSK REGION</div>
+        <div class="death-info">
+          * ALL EQUIPPED WEAPONS, RIG, BACKPACK, AND POCKET GEAR WERE LOST.<br>
+          * ITEMS STORED IN YOUR ALPHA SECURE BOX AND MAIN STASH WERE PRESERVED.
+        </div>
+        <button class="btn-deploy" id="btn-death-ok" style="background: #e74c3c; color: #fff;">
+          RETURN TO HIDEOUT
+        </button>
+      </div>
+    </div>
+
+    <!-- 6. SURVIVED RAID SUMMARY (EXTRACTION SCREEN) -->
+    <div class="overlay-screen" id="extract-summary-modal" style="display: none;">
+      <div class="extract-summary-box">
+        <div class="summary-header">
+          <div class="summary-status-badge">STATUS: SURVIVED RAID</div>
+          <div class="summary-title" id="summary-extract-zone">EXTRACTED VIA ZONE</div>
+          <div class="summary-sub">ALL CARRIED ITEMS AND GEAR HAVE BEEN SAFELY PRESERVED</div>
+        </div>
+
+        <div class="summary-stats-grid">
+          <div class="summary-stat-card">
+            <span class="stat-label">COMBAT XP GAINED</span>
+            <span class="stat-value" id="summary-stat-xp">+2,450 XP</span>
+          </div>
+          <div class="summary-stat-card">
+            <span class="stat-label">SCAV KILLS</span>
+            <span class="stat-value" id="summary-stat-kills">0 KILLS</span>
+          </div>
+          <div class="summary-stat-card">
+            <span class="stat-label">CARRIED LOOT VALUE</span>
+            <span class="stat-value" id="summary-stat-value">0 ₽</span>
+          </div>
+          <div class="summary-stat-card">
+            <span class="stat-label">SURVIVAL STATUS</span>
+            <span class="stat-value" style="color: #2ecc71;">SURVIVED</span>
+          </div>
+        </div>
+
+        <div class="summary-loot-section">
+          <div class="section-label">EXTRACTED INVENTORY & LOOT BROUGHT OUT:</div>
+          <div class="summary-loot-list" id="summary-loot-list"></div>
+        </div>
+
+        <div class="summary-btn-row">
+          <button class="btn-deploy" id="btn-transfer-loot" style="background: #2ecc71; color: #0b0d11; flex: 2;">
+            TRANSFER LOOT TO STASH & RETURN TO HIDEOUT
+          </button>
+          <button class="btn-secondary" id="btn-return-hideout-direct" style="flex: 1;">
+            KEEP IN LOADOUT
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/client.js"></script>
+</body>
+</html>

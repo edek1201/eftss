@@ -1,0 +1,22 @@
+{
+  "name": "eft-tactical-2d",
+  "version": "1.0.0",
+  "description": "Browser-based 2D Top-Down Tactical Extraction Shooter inspired by Escape from Tarkov",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "tarkov",
+    "extraction-shooter",
+    "multiplayer",
+    "canvas",
+    "websockets"
+  ],
+  "author": "Antigravity Systems Architect",
+  "license": "MIT",
+  "dependencies": {
+    "socket.io": "^4.8.1"
+  }
+}
