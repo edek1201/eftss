@@ -226,8 +226,8 @@ export class TacticalMap {
         id: "fact_office_safe",
         type: "crate_military",
         name: "3rd Floor Office Weapon Case",
-        x: 40 * 32 + 16, y: 6 * 32 + 16,
-        gridW: 3, gridH: 2
+        x: 42 * 32 + 16, y: 6 * 32 + 16,
+        gridW: 6, gridH: 3
       },
       {
         id: "fact_silo_dead_scav",
@@ -255,14 +255,35 @@ export class TacticalMap {
         type: "crate_military",
         name: "Drainage Tunnel Contraband Stash",
         x: 40 * 32 + 16, y: 70 * 32 + 16,
-        gridW: 3, gridH: 2
+        gridW: 6, gridH: 3
       },
       {
         id: "fact_gate3_crate",
         type: "crate_military",
         name: "Gate 3 Heavy Supply Chest",
         x: 74 * 32 + 16, y: 74 * 32 + 16,
-        gridW: 3, gridH: 2
+        gridW: 6, gridH: 3
+      },
+      {
+        id: "fact_office_med_cache",
+        type: "med_bag",
+        name: "West Office First-Aid Cabinet",
+        x: 8 * 32 + 16, y: 10 * 32 + 16,
+        gridW: 3, gridH: 3
+      },
+      {
+        id: "fact_reactor_cache",
+        type: "crate_military",
+        name: "Reactor Maintenance Locker",
+        x: 37 * 32 + 16, y: 38 * 32 + 16,
+        gridW: 6, gridH: 3
+      },
+      {
+        id: "fact_pump_ammo_cache",
+        type: "ammo_box",
+        name: "Pumping Station Ammo Box",
+        x: 72 * 32 + 16, y: 34 * 32 + 16,
+        gridW: 3, gridH: 3
       }
     ];
 
@@ -397,15 +418,15 @@ export class TacticalMap {
         id: "cust_dorms_weapon",
         type: "crate_military",
         name: "3-Story Dorms Marked Weapon Crate",
-        x: 60 * 32 + 16, y: 16 * 32 + 16,
-        gridW: 3, gridH: 2
+        x: 60 * 32 + 16, y: 18 * 32 + 16,
+        gridW: 6, gridH: 3
       },
       {
         id: "cust_wh4_military",
         type: "crate_military",
         name: "Warehouse 4 Weapon Stash",
         x: 93 * 32 + 16, y: 62 * 32 + 16,
-        gridW: 3, gridH: 2
+        gridW: 6, gridH: 3
       },
       {
         id: "cust_rail_corpse",
@@ -419,7 +440,7 @@ export class TacticalMap {
         type: "crate_military",
         name: "Admin Office Logistics Safe",
         x: 93 * 32 + 16, y: 22 * 32 + 16,
-        gridW: 3, gridH: 2
+        gridW: 6, gridH: 3
       },
       {
         id: "cust_wh1_ammo",
@@ -434,6 +455,27 @@ export class TacticalMap {
         name: "Guard Post Medical Bag",
         x: 8 * 32 + 16, y: 8 * 32 + 16,
         gridW: 2, gridH: 2
+      },
+      {
+        id: "cust_wh2_tool_cache",
+        type: "crate_military",
+        name: "Warehouse 2 Tool Crate",
+        x: 90 * 32 + 16, y: 30 * 32 + 16,
+        gridW: 6, gridH: 3
+      },
+      {
+        id: "cust_rail_supply_cache",
+        type: "ammo_box",
+        name: "Railway Signalman's Supply Box",
+        x: 72 * 32 + 16, y: 96 * 32 + 16,
+        gridW: 3, gridH: 3
+      },
+      {
+        id: "cust_wh3_med_cache",
+        type: "med_bag",
+        name: "Warehouse 3 Trauma Kit",
+        x: 36 * 32 + 16, y: 62 * 32 + 16,
+        gridW: 3, gridH: 3
       }
     ];
 
@@ -520,6 +562,30 @@ export class TacticalMap {
     // D-2 Subterranean Approach (SE: x: 68 to 82, y: 68 to 82)
     this._fillBox(68, 68, 14, 14, TILE_TYPES.METAL_GRATE);
 
+    // Connect the four service rooms to the command hub, then link the side
+    // rooms back to the outer ring so no loot wing is a sealed dead end.
+    this._fillBox(32, 30, 2, 6, TILE_TYPES.FLOOR_CONCRETE);
+    this._fillBox(66, 28, 2, 8, TILE_TYPES.FLOOR_CONCRETE);
+    this._fillBox(32, 64, 4, 5, TILE_TYPES.FLOOR_CONCRETE);
+    this._fillBox(64, 64, 6, 5, TILE_TYPES.FLOOR_CONCRETE);
+    this._fillBox(16, 24, 3, 3, TILE_TYPES.FLOOR_CONCRETE);
+    this._fillBox(82, 24, 3, 3, TILE_TYPES.FLOOR_CONCRETE);
+    this._fillBox(24, 82, 3, 3, TILE_TYPES.FLOOR_CONCRETE);
+    this._fillBox(82, 72, 3, 3, TILE_TYPES.FLOOR_CONCRETE);
+    this._fillBox(72, 82, 3, 3, TILE_TYPES.FLOOR_CONCRETE);
+    this._fillBox(72, 48, 13, 4, TILE_TYPES.FLOOR_CONCRETE);
+
+    this._setTile(33, 33, TILE_TYPES.DOOR_FRAME);
+    this._setTile(66, 33, TILE_TYPES.DOOR_FRAME);
+    this._setTile(33, 66, TILE_TYPES.DOOR_FRAME);
+    this._setTile(66, 66, TILE_TYPES.DOOR_FRAME);
+    this._setTile(17, 25, TILE_TYPES.DOOR_FRAME);
+    this._setTile(83, 25, TILE_TYPES.DOOR_FRAME);
+    this._setTile(25, 83, TILE_TYPES.DOOR_FRAME);
+    this._setTile(83, 73, TILE_TYPES.DOOR_FRAME);
+    this._setTile(73, 83, TILE_TYPES.DOOR_FRAME);
+    this._setTile(83, 50, TILE_TYPES.DOOR_FRAME);
+
     this.extractZones = [
       {
         id: "d2_extract",
@@ -553,15 +619,15 @@ export class TacticalMap {
         id: "bnk_turbine_crate",
         type: "crate_military",
         name: "Turbine Room Military Stash",
-        x: 25 * 32 + 16, y: 25 * 32 + 16,
-        gridW: 3, gridH: 2
+        x: 29 * 32 + 16, y: 25 * 32 + 16,
+        gridW: 6, gridH: 3
       },
       {
         id: "bnk_server_tech",
         type: "crate_military",
         name: "Server Vault Intel Case",
-        x: 75 * 32 + 16, y: 25 * 32 + 16,
-        gridW: 3, gridH: 2
+        x: 79 * 32 + 16, y: 25 * 32 + 16,
+        gridW: 6, gridH: 3
       },
       {
         id: "bnk_command_corpse",
@@ -581,7 +647,7 @@ export class TacticalMap {
         id: "bnk_medical_station",
         type: "med_bag",
         name: "Bunker Hospital Kit",
-        x: 25 * 32 + 16, y: 75 * 32 + 16,
+        x: 29 * 32 + 16, y: 70 * 32 + 16,
         gridW: 2, gridH: 2
       },
       {
@@ -589,7 +655,28 @@ export class TacticalMap {
         type: "crate_military",
         name: "Hermetic Door Weapons Case",
         x: 14 * 32 + 16, y: 14 * 32 + 16,
-        gridW: 3, gridH: 2
+        gridW: 6, gridH: 3
+      },
+      {
+        id: "bnk_command_cache",
+        type: "crate_military",
+        name: "Command Centre Emergency Cache",
+        x: 56 * 32 + 16, y: 50 * 32 + 16,
+        gridW: 6, gridH: 3
+      },
+      {
+        id: "bnk_triage_cache",
+        type: "med_bag",
+        name: "Triage Ward Medical Cabinet",
+        x: 28 * 32 + 16, y: 78 * 32 + 16,
+        gridW: 3, gridH: 3
+      },
+      {
+        id: "bnk_d2_supply_cache",
+        type: "ammo_box",
+        name: "D-2 Security Supply Box",
+        x: 78 * 32 + 16, y: 76 * 32 + 16,
+        gridW: 3, gridH: 3
       }
     ];
 

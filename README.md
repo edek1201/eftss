@@ -1,6 +1,6 @@
 # Escape from Tarkov 2D (Browser CQB Extraction Shooter)
 
-A browser-based, top-down tactical extraction shooter heavily inspired by *Escape from Tarkov* (PVE Co-op focus for 1-4 players). Built with **pure Vanilla JavaScript (ES6+ Modules), HTML5 Canvas 2D, and an authoritative Node.js backend operating at a strict 20 Hz tickrate (50ms delta)**.
+A browser-based, top-down tactical extraction shooter heavily inspired by *Escape from Tarkov* (PVE Co-op focus for 1-4 players). Built with **pure Vanilla JavaScript (ES6+ Modules), HTML5 Canvas 2D, and an authoritative Node.js backend operating at 30 Hz**.
 
 Zero build steps, zero external front-end dependencies, zero external audio assets. Everything synthesized natively in-engine.
 
@@ -15,10 +15,10 @@ EFT/
 ├── server.js                 # Authoritative server, WebSocket transport & account API
 ├── shared/
 │   ├── physics.js            # Circle-vs-AABB sliding physics, stamina, vector math
-│   └── map.js                # Factory (30x30), Warehouse (50x50), Bunker (40x40) + Containers
+│   └── map.js                # Factory (80x80), Customs (120x120), Bunker (100x100) + Loot Sites
 ├── server/
 │   ├── account-store.js      # Password hashing and persistent PMC accounts
-│   └── game-engine.js        # 20Hz simulation, container loot seeding & transfer sync
+│   └── game-engine.js        # 30Hz simulation, scav AI, container loot & transfer sync
 └── public/
     ├── index.html            # Pre-raid lobby, stash management, tactical HUD, dual-canvas DOM
     ├── css/
@@ -50,11 +50,13 @@ Zero external `.mp3` or `.wav` files required. 100% procedurally synthesized via
 ## 2. In-Raid Interactive Loot Containers (`shared/map.js`, `server.js`, `public/js/inventory.js`)
 Map tiles are populated with interactive loot entities across all 3 maps:
 - **Container Types**:
-  - **Green Military Crates** ($3\times 2$ grid): High-tier weapons (AK-74M, MP5, Colt M4A1) and armor-piercing ammo.
+  - **Green Military Crates** (6x3 weapon cases): Full-size weapons, ammo, armor, and valuables; items keep their real inventory dimensions.
   - **Dead Scav Bodies** ($3\times 3$ grid): Barter valuables (Graphics Card GPU, Physical Bitcoin, Military Cable, Golden Rooster) and bandages.
   - **Wooden Ammo Boxes** ($2\times 2$ grid): 5.45x39 BT, 5.56x45 M855, 9x19 Pst gzh ammunition.
   - **SMU Medical Bags** ($2\times 2$ grid): Salewa First Aid (400 HP), IFAK, Morphine injectors, and splints.
-- **Proximity HUD Interaction**: When standing within 1.75 tiles and facing a container, the canvas displays a prompt: `[F] SEARCH <CONTAINER NAME>`.
+- **Proximity HUD Interaction**: When standing within 1.75 tiles of a container, the canvas displays a `[F] SEARCH` prompt.
+- **Search Risk**: Rummaging produces noise that nearby Scavs investigate. Sprinting and gunfire also draw attention.
+- **Expanded Routes**: Each map has nine fixed loot sites distributed across its major areas, with different crate, ammo, and medical-cache layouts.
 - **Split Container Looting Grid**:
   - Pressing `[F]` opens a split interface: Container contents on the left, player rig and backpack on the right.
   - Drag and drop or **Shift-click** to instantly transfer loot between container and gear.
@@ -80,13 +82,19 @@ Map tiles are populated with interactive loot entities across all 3 maps:
 ---
 
 ## 4. Working Fire Selector Engine & Recoil Dynamics (`public/js/input.js`, `public/js/client.js`)
+- **Weapon Handling & Accuracy**:
+  - Shot direction is used by server hit registration, so visual spread and actual hits agree.
+  - Sprinting and moving increase spread; crouching and aiming reduce it. Firing builds bloom, which recovers faster while stationary and aiming.
 - **SEMI Mode**:
   - Left Click fires exactly 1 round.
   - Holding Left Click does not continuously fire; requires releasing and re-clicking.
-  - Tight baseline spread ($0.012\text{ rad}$) and rapid spread recovery.
+  - Single shots avoid full-auto bloom but still inherit stance and movement penalties.
 - **FULL-AUTO Mode**:
   - Holding Left Click fires continuously at the weapon's cyclic rate of fire ($600\text{ RPM} \approx 105\text{ms}$ interval).
-  - Sustained firing progressively accumulates spread bloom (up to $0.14\text{ rad} \approx 8^\circ$) and triggers screen recoil camera shake.
+  - Sustained firing progressively accumulates spread bloom (up to $0.18\text{ rad} \approx 10^\circ$) and triggers screen recoil camera shake.
+- **Scav Combat**:
+  - Scavs take several centre-mass hits, while heavier guards and bosses have stronger armor.
+  - Their aim takes time to settle and they fire less often; regular Scavs are less accurate than elite enemies.
 - **HUD Synchronization**:
   - Pressing `[B]` toggles mode with mechanical audio feedback.
   - HUD displays active mode: `[SEMI] (B)` vs. highlighted `[FULL-AUTO] (B)`.

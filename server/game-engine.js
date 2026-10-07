@@ -1,10 +1,10 @@
 /**
  * EFT Tactical 2D - Server Authoritative Game Engine & Room Manager
  * Features:
- * - Authoritative 20Hz Simulation
+ * - Authoritative 30Hz Simulation
  * - Server-Authoritative PVE Scav Bot Engine (Patrol, LOS Detection, 0.8s Reaction, Combat Firing, Death -> Lootable Corpse)
  * - Real-time Player Damage & Projectile Collision
- * - Multi-Map Room Management (Factory 60x60, Customs 100x100, Bunker 80x80)
+ * - Multi-Map Room Management (Factory 80x80, Customs 120x120, Bunker 100x100)
  */
 
 import { TacticalMap, MAP_CONFIGS } from '../shared/map.js';
@@ -50,6 +50,7 @@ export class GameRoom {
     this.intervalId = null;
     this.onSnapshotCallback = null;
     this.onBroadcastCallback = null;
+    this.playersLootNoise = new Map();
 
     this._seedContainerLoot();
   }
@@ -59,8 +60,9 @@ export class GameRoom {
 
     const helperPlaceItem = (items, itemDef, gridW, gridH) => {
       if (!itemDef) return false;
-      const w = Math.min(gridW, itemDef.w || 1);
-      const h = Math.min(gridH, itemDef.h || 1);
+      const w = itemDef.w || 1;
+      const h = itemDef.h || 1;
+      if (w > gridW || h > gridH) return false;
 
       for (let r = 0; r <= gridH - h; r++) {
         for (let c = 0; c <= gridW - w; c++) {
@@ -199,8 +201,8 @@ export class GameRoom {
         speed: 95,
         runSpeed: 215, // Fast aggressive sprint
         health: {
-          head: 70, // 3x standard PMC HP
-          thorax: 160,
+          head: 90,
+          thorax: 200,
           stomach: 140,
           leftArm: 120,
           rightArm: 120,
@@ -208,6 +210,7 @@ export class GameRoom {
           rightLeg: 130
         },
         maxHpTotal: 870,
+        maxCombatHp: 290,
         armorClass: 5,
         helmetClass: 5,
         isAlive: true,
@@ -284,9 +287,10 @@ export class GameRoom {
           speed: 85,
           runSpeed: 180,
           health: {
-            head: 45, thorax: 110, stomach: 90, leftArm: 80, rightArm: 80, leftLeg: 85, rightLeg: 85
+            head: 75, thorax: 145, stomach: 90, leftArm: 80, rightArm: 80, leftLeg: 85, rightLeg: 85
           },
           maxHpTotal: 575,
+          maxCombatHp: 220,
           armorClass: 4,
           isAlive: true,
           state: 'PATROL',
@@ -359,9 +363,10 @@ export class GameRoom {
         speed: 70,
         runSpeed: 160,
         health: {
-          head: 35, thorax: 85, stomach: 70, leftArm: 60, rightArm: 60, leftLeg: 65, rightLeg: 65
+          head: 60, thorax: 120, stomach: 70, leftArm: 60, rightArm: 60, leftLeg: 65, rightLeg: 65
         },
         maxHpTotal: 440,
+        maxCombatHp: 180,
         armorClass: 2,
         isAlive: true,
         state: 'PATROL',
@@ -520,6 +525,7 @@ export class GameRoom {
     this.state = 'IN_RAID';
     this.raidTimeRemaining = RAID_DURATION_SECONDS;
     this.tickCount = 0;
+    this.playersLootNoise.clear();
 
     for (const p of this.players.values()) {
       const sp = this.map.getSpawnPoint(p.slot);
@@ -571,6 +577,15 @@ export class GameRoom {
 
   getContainerData(containerId) {
     return this.containers.get(containerId) || null;
+  }
+
+  alertScavsToLooting(socketId, containerId) {
+    const player = this.players.get(socketId);
+    const container = this.containers.get(containerId);
+    if (!player || !container || !player.isAlive || player.extracted ||
+        Math.hypot(player.x - container.x, player.y - container.y) > 64) return false;
+    this.playersLootNoise.set(socketId, 5);
+    return true;
   }
 
   transferContainerItem(containerId, itemId, action, targetItem) {
@@ -680,7 +695,7 @@ export class GameRoom {
   }
 
   /**
-   * 20Hz Authoritative Tick Loop
+   * 30Hz Authoritative Tick Loop
    */
   tick() {
     if (this.state !== 'IN_RAID') return;
@@ -709,7 +724,7 @@ export class GameRoom {
 
           // Process Player Weapon Fire Hitreg vs Scav Bots
           if (input.isFiring) {
-            this._processPlayerShot(player);
+            this._processPlayerShot(player, input.shotAngle);
           }
         }
       } else {
@@ -760,7 +775,7 @@ export class GameRoom {
     // 4. Authoritative Simulated Grenade Simulation
     this._updateGrenades(dt);
 
-    // 5. Broadcast 20Hz Snapshot
+    // 5. Broadcast 30Hz Snapshot
     if (this.onSnapshotCallback) {
       const snapshot = this.getSnapshot();
       this.onSnapshotCallback(this.code, snapshot);
@@ -770,12 +785,11 @@ export class GameRoom {
   /**
    * Player Bullet Hit Registration against Scav Bots & Bosses
    */
-  _processPlayerShot(player) {
+  _processPlayerShot(player, shotAngle = player.angle) {
     const wepType = player.activeWeaponType || 'none';
     if (wepType === 'none') return;
     const isMelee = (wepType === 'melee');
-    const maxRange = isMelee ? 60 : 550;
-    const angleThreshold = isMelee ? 0.6 : 0.12;
+    const maxRange = isMelee ? 60 : 520;
 
     let baseDamage = 42;
     if (wepType === 'ak74m') baseDamage = 49;
@@ -791,6 +805,13 @@ export class GameRoom {
     else if (wepType === 'glock17') baseDamage = 32;
     else if (wepType === 'melee') baseDamage = 35;
 
+    const firingAngle = Number.isFinite(shotAngle) ? shotAngle : player.angle;
+    const originX = player.x + Math.cos(player.angle) * 36;
+    const originY = player.y + Math.sin(player.angle) * 36;
+    const dirX = Math.cos(firingAngle);
+    const dirY = Math.sin(firingAngle);
+    let nearestHit = null;
+
     for (const bot of this.bots) {
       if (!bot.isAlive) continue;
 
@@ -799,62 +820,55 @@ export class GameRoom {
       const dist = Math.hypot(toBotX, toBotY);
 
       if (dist < maxRange) {
-        // Line of sight check (8px step precision)
-        if (!this.map.hasLineOfSight(player.x, player.y, bot.x, bot.y)) continue;
-
-        // Angle check within bullet cone / melee swing arc
-        const angleToBot = Math.atan2(toBotY, toBotX);
-        let angleDiff = Math.abs(angleToBot - player.angle);
-        if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
-
-        if (angleDiff < angleThreshold) { // Direct hit!
-          const isHeadshot = (Math.random() < 0.35);
-
-          if (bot.isBoss) {
-            // Boss Killa / Reshala Class 5 armor damage mitigation
-            if (isHeadshot) {
-              const headDmg = Math.round(baseDamage * (wepType === 'mosin' || wepType === 'asval' ? 0.8 : 0.45));
-              bot.health.head = Math.max(0, bot.health.head - headDmg);
-            } else {
-              const bodyDmg = Math.round(baseDamage * 0.58);
-              bot.health.thorax = Math.max(0, bot.health.thorax - bodyDmg);
-            }
-          } else if (bot.isGuard) {
-            // Guard Class 4 armor mitigation
-            if (isHeadshot) {
-              bot.health.head = Math.max(0, bot.health.head - Math.round(baseDamage * 0.75));
-            } else {
-              bot.health.thorax = Math.max(0, bot.health.thorax - Math.round(baseDamage * 0.72));
-            }
-          } else {
-            if (isHeadshot) {
-              bot.health.head = 0;
-            } else {
-              bot.health.thorax = Math.max(0, bot.health.thorax - baseDamage);
-            }
-          }
-
-          this.botHitEvents.push({ id: bot.id, x: bot.x, y: bot.y });
-
-          // Check Bot Lethality
-          if (bot.health.head <= 0 || bot.health.thorax <= 0) {
-            this._killBotAndDropCorpse(bot);
-            player.scavKills = (player.scavKills || 0) + 1;
-          } else {
-            // Bot takes damage -> If it has line of sight, enter ATTACK; otherwise face damage direction
-            bot.angle = Math.atan2(player.y - bot.y, player.x - bot.x);
-            if (this.map.hasLineOfSight(bot.x, bot.y, player.x, player.y)) {
-              bot.targetPlayerId = player.id;
-              bot.state = 'ATTACK';
-              bot.acquireDelay = bot.isBoss ? 0.15 : 0.2;
-              bot.attackCooldown = bot.isBoss ? 0.25 : 0.3;
-            } else {
-              bot.targetPlayerId = null;
-              bot.state = 'PATROL';
-            }
-          }
-          break; // Bullet absorbed
+        if (isMelee) {
+          let angleDiff = Math.abs(Math.atan2(toBotY, toBotX) - firingAngle);
+          if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+          if (angleDiff > 0.6 || dist > maxRange) continue;
+          nearestHit = { bot, distance: dist };
+          break;
         }
+
+        const toOriginX = bot.x - originX;
+        const toOriginY = bot.y - originY;
+        const alongRay = toOriginX * dirX + toOriginY * dirY;
+        const acrossRay = Math.abs(toOriginX * dirY - toOriginY * dirX);
+        const hitRadius = bot.radius || PHYSICS_CONFIG.PLAYER_RADIUS;
+        if (alongRay < 0 || alongRay > maxRange || acrossRay > hitRadius) continue;
+        const hitX = originX + dirX * alongRay;
+        const hitY = originY + dirY * alongRay;
+        if (!this.map.hasLineOfSight(originX, originY, hitX, hitY)) continue;
+        if (!nearestHit || alongRay < nearestHit.distance) nearestHit = { bot, distance: alongRay };
+      }
+    }
+
+    if (!nearestHit) return;
+    const { bot } = nearestHit;
+    const isHeadshot = Math.random() < 0.22;
+    const armorMultiplier = bot.isBoss ? 0.48 : bot.isGuard ? 0.65 : 0.82;
+
+    if (isHeadshot) {
+      const headMultiplier = bot.isBoss ? (wepType === 'mosin' || wepType === 'asval' ? 0.8 : 0.45) : 0.9;
+      bot.health.head = Math.max(0, bot.health.head - Math.round(baseDamage * headMultiplier * armorMultiplier));
+    } else {
+      const bodyMultiplier = bot.isBoss ? 0.58 : bot.isGuard ? 0.82 : 1;
+      bot.health.thorax = Math.max(0, bot.health.thorax - Math.round(baseDamage * bodyMultiplier * armorMultiplier));
+    }
+
+    this.botHitEvents.push({ id: bot.id, x: bot.x, y: bot.y });
+
+    if (bot.health.head <= 0 || bot.health.thorax <= 0) {
+      this._killBotAndDropCorpse(bot);
+      player.scavKills = (player.scavKills || 0) + 1;
+    } else {
+      bot.angle = Math.atan2(player.y - bot.y, player.x - bot.x);
+      if (this.map.hasLineOfSight(bot.x, bot.y, player.x, player.y)) {
+        bot.targetPlayerId = player.id;
+        bot.state = 'ATTACK';
+        bot.acquireDelay = bot.isBoss ? 0.45 : bot.isGuard ? 0.8 : 1.0;
+        bot.attackCooldown = bot.isBoss ? 0.5 : 0.8;
+      } else {
+        bot.targetPlayerId = null;
+        bot.state = 'PATROL';
       }
     }
   }
@@ -941,6 +955,11 @@ export class GameRoom {
    */
   _updateScavBots(dt) {
     const alivePlayers = Array.from(this.players.values()).filter(p => p.isAlive && !p.extracted);
+    for (const [playerId, timer] of this.playersLootNoise) {
+      const remaining = timer - dt;
+      if (remaining <= 0) this.playersLootNoise.delete(playerId);
+      else this.playersLootNoise.set(playerId, remaining);
+    }
 
     for (const bot of this.bots) {
       if (!bot.isAlive) continue;
@@ -1007,8 +1026,8 @@ export class GameRoom {
               targetHasLOS = true;
             }
           } else {
-            // Hearing check (acoustic alert radius: sprint <= 240px, gunfire <= 520px)
-            const canHear = (p.isSprinting && d < 240) || (p.isFiring && d < 520);
+            const lootingNoise = this.playersLootNoise.has(p.id) && d < 320;
+            const canHear = (p.isSprinting && d < 240) || (p.isFiring && d < 520) || lootingNoise;
             if (canHear && d < heardDist) {
               heardDist = d;
               heardPlayer = p;
@@ -1021,6 +1040,9 @@ export class GameRoom {
           bot.angle = soundAngle;
           bot.isFiring = false;
           bot.state = 'PATROL';
+          bot.patrolTarget.x = heardPlayer.x;
+          bot.patrolTarget.y = heardPlayer.y;
+          bot.patrolTimer = Math.max(bot.patrolTimer, 5);
         }
       }
 
@@ -1030,8 +1052,8 @@ export class GameRoom {
 
         if (bot.state !== 'ATTACK') {
           bot.state = 'ATTACK';
-          bot.acquireDelay = bot.isBoss ? 0.25 : 0.6;
-          bot.attackCooldown = bot.isBoss ? 0.35 : 0.6;
+          bot.acquireDelay = bot.isBoss ? 0.45 : bot.isGuard ? 0.75 : 1.0;
+          bot.attackCooldown = bot.isBoss ? 0.5 : bot.isGuard ? 0.8 : 0.95;
           bot.vx = 0;
           bot.vy = 0;
           bot.isFiring = false;
@@ -1100,7 +1122,7 @@ export class GameRoom {
           if (bot.attackCooldown <= 0) {
             if (this.map.hasLineOfSight(bot.x, bot.y, targetPlayer.x, targetPlayer.y)) {
               const bulletSpeed = bot.isBoss ? 780 : 620;
-              const spread = (Math.random() * 2 - 1) * (bot.isBoss ? 0.025 : 0.045);
+              const spread = (Math.random() * 2 - 1) * (bot.isBoss ? 0.035 : bot.isGuard ? 0.055 : 0.075);
               const shotAngle = bot.angle + spread;
               const spawnX = bot.x + Math.cos(bot.angle) * 16;
               const spawnY = bot.y + Math.sin(bot.angle) * 16;
@@ -1123,7 +1145,11 @@ export class GameRoom {
                 });
 
                 bot.isFiring = true;
-                bot.attackCooldown = bot.isBoss ? (0.22 + Math.random() * 0.15) : (0.75 + Math.random() * 0.4);
+                bot.attackCooldown = bot.isBoss
+                  ? (0.35 + Math.random() * 0.2)
+                  : bot.isGuard
+                    ? (0.7 + Math.random() * 0.35)
+                    : (0.8 + Math.random() * 0.4);
               } else {
                 bot.isFiring = false;
               }
@@ -1356,7 +1382,7 @@ export class GameRoom {
         angle: Math.round(b.angle * 1000) / 1000,
         state: b.state,
         isFiring: b.isFiring,
-        healthPct: Math.round(((b.health.head + b.health.thorax) / (b.isBoss ? 230 : 120)) * 100)
+        healthPct: Math.max(0, Math.round(((b.health.head + b.health.thorax) / (b.maxCombatHp || 120)) * 100))
       });
     }
 

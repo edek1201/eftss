@@ -686,6 +686,7 @@ class GameClient {
           this.inventory.close();
         } else {
           this.inventory.openContainerSearch(this.nearbyContainer);
+          this.network.send('lootNoise', { containerId: this.nearbyContainer.id });
         }
       }
     };
@@ -1454,6 +1455,7 @@ class GameClient {
 
     const activeWep = this.getActiveWeapon();
     const shouldFire = this.input.shouldFireWeapon(currentTime, isInvOpen);
+    let shotAngle = null;
 
     if (activeWep.type === 'none') {
       this.localPlayer.isFiring = false;
@@ -1477,17 +1479,20 @@ class GameClient {
         audioEngine.playGunshot(activeWep.config.soundType, isAuto);
         this.renderer.addRecoilShake(activeWep.config.recoil);
 
-        this.spreadBloom = Math.min(0.14, this.spreadBloom + activeWep.config.bloom);
-
-        const spreadAngle = (Math.random() * 2 - 1) * (activeWep.config.spread + this.spreadBloom);
-        const bulletAngle = this.localPlayer.angle + spreadAngle;
+        const movementSpeed = Math.hypot(this.localPlayer.vx || 0, this.localPlayer.vy || 0);
+        const stanceSpread = this.localPlayer.isCrouching ? 0.012 : 0.035;
+        const movementSpread = Math.min(0.075, movementSpeed / 280 * (this.localPlayer.isSprinting ? 0.10 : 0.07));
+        const aimMultiplier = inputState.isAiming ? 0.55 : 1;
+        this.spreadBloom = Math.min(0.18, this.spreadBloom + activeWep.config.bloom);
+        const shotSpread = (activeWep.config.spread + stanceSpread + movementSpread + this.spreadBloom) * aimMultiplier;
+        shotAngle = this.localPlayer.angle + (Math.random() * 2 - 1) * shotSpread;
         const bulletSpeed = activeWep.config.bulletSpeed;
 
         this.bullets.push({
           x: this.localPlayer.x + Math.cos(this.localPlayer.angle) * 36,
           y: this.localPlayer.y + Math.sin(this.localPlayer.angle) * 36,
-          vx: Math.cos(bulletAngle) * bulletSpeed,
-          vy: Math.sin(bulletAngle) * bulletSpeed,
+          vx: Math.cos(shotAngle) * bulletSpeed,
+          vy: Math.sin(shotAngle) * bulletSpeed,
           distTraveled: 0,
           maxDist: 520,
           weaponType: activeWep.type
@@ -1503,7 +1508,8 @@ class GameClient {
       this.localPlayer.isFiring = false;
     }
 
-    this.spreadBloom = Math.max(0, this.spreadBloom - 0.25 * dt);
+    const isMovingForAccuracy = Math.hypot(this.localPlayer.vx || 0, this.localPlayer.vy || 0) > 12;
+    this.spreadBloom = Math.max(0, this.spreadBloom - (isMovingForAccuracy ? 0.10 : (inputState.isAiming ? 0.32 : 0.22)) * dt);
 
     // 2. BULLET INTEGRATION (ANTI-WALL TUNNELING WITH 8PX SUB-STEPPING)
     for (let i = this.bullets.length - 1; i >= 0; i--) {
@@ -1549,6 +1555,7 @@ class GameClient {
       isCrouching: inputState.isCrouching,
       isAiming: inputState.isAiming,
       isFiring: this.localPlayer.isFiring,
+      shotAngle,
       activeWeaponType: activeWep.type,
       fireMode: inputState.fireMode,
       tacticalDevice: inputState.tacticalDevice

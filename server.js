@@ -1,7 +1,7 @@
 /**
  * EFT Tactical 2D - Server Entrypoint & Dual-Transport Network Server
  * Supports Pre-Raid Squad Lobby, Dynamic Map Switching, In-Raid Container Loot Sync,
- * and 20Hz Synchronized Deployment.
+ * and 30Hz Synchronized Deployment.
  */
 
 import http from 'node:http';
@@ -534,6 +534,12 @@ function handleClientMessage(socketId, message, sendFn) {
           }));
         }
       }
+      break;
+    }
+
+    case 'lootNoise': {
+      const room = roomManager.getRoomBySocket(socketId);
+      if (room && data?.containerId) room.alertScavsToLooting(socketId, data.containerId);
       break;
     }
 

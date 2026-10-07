@@ -1775,7 +1775,7 @@ export class TacticalRenderer {
 
   _renderInteractionPrompt(ctx, viewW, viewH, container) {
     const boxW = 280;
-    const boxH = 42;
+    const boxH = 54;
     const bx = viewW / 2 - boxW / 2;
     const by = viewH / 2 + 70;
 
@@ -1797,6 +1797,8 @@ export class TacticalRenderer {
     ctx.fillStyle = '#788597';
     ctx.font = '10px Consolas, monospace';
     ctx.fillText(`CONTAINER: ${container.type.replace('_', ' ').toUpperCase()}`, bx + 16, by + 32);
+    ctx.fillStyle = '#c67a4b';
+    ctx.fillText('SEARCHING CAN ALERT NEARBY SCAVS', bx + 16, by + 46);
     ctx.restore();
   }
 
