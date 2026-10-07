@@ -1,6 +1,6 @@
 /**
  * EFT Tactical 2D - Operator Account & Persistent Session Engine
- * Strictly keyed under 'tarkov2d_profile' in browser localStorage.
+ * Server accounts are authoritative; localStorage is an offline-friendly cache.
  * Supports:
  * - Operator Initialization on first launch
  * - Auto-login on subsequent visits directly into Hideout Hub
@@ -11,9 +11,36 @@
 
 const STORAGE_KEY = 'tarkov2d_profile';
 
+async function accountRequest(url, options = {}) {
+  let response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+      }
+    });
+  } catch {
+    throw new Error('Cannot reach the account server. Check your connection and try again.');
+  }
+
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error('The account server returned an invalid response.');
+  }
+  if (!response.ok) throw new Error(result.error || 'Account request failed.');
+  return result;
+}
+
 export class ProfileManager {
   constructor() {
     this.profile = null;
+    this.authenticated = false;
+    this.saveChain = Promise.resolve();
+    this.onSyncState = null;
     this.loadProfile();
   }
 
@@ -84,6 +111,50 @@ export class ProfileManager {
     }
     this.profile = null;
     return null;
+  }
+
+  async restoreAccountSession() {
+    const result = await accountRequest('/api/auth/me');
+    this.authenticated = result.authenticated === true;
+    if (this.authenticated) {
+      this.profile = this._migrateProfile(result.account.profile);
+      this._storeLocalProfile();
+      return true;
+    }
+    return false;
+  }
+
+  async registerAccount(username, password, callsign, faction) {
+    if (!this.profile) this.initProfile(callsign, faction);
+    this.profile.callsign = callsign;
+    this.profile.faction = faction;
+    const result = await accountRequest('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        username,
+        password,
+        callsign,
+        faction,
+        profile: this.profile
+      })
+    });
+    this.authenticated = true;
+    this.profile = this._migrateProfile(result.account.profile);
+    this._storeLocalProfile();
+    this.onSyncState?.('PROFILE SAVED TO SERVER', '');
+    return this.profile;
+  }
+
+  async loginAccount(username, password) {
+    const result = await accountRequest('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password })
+    });
+    this.authenticated = true;
+    this.profile = this._migrateProfile(result.account.profile);
+    this._storeLocalProfile();
+    this.onSyncState?.('PROFILE SAVED TO SERVER', '');
+    return this.profile;
   }
 
   initProfile(callsign = 'USEC_Operator', faction = 'USEC') {
@@ -416,6 +487,17 @@ export class ProfileManager {
 
   saveProfile() {
     if (!this.profile) return;
+    this._storeLocalProfile();
+    if (!this.authenticated) return;
+
+    this.onSyncState?.('SYNCING PROFILE...', '');
+    this._queueServerSave().catch((error) => {
+      console.error('[EFT] Account profile sync failed:', error);
+      this.onSyncState?.('PROFILE SYNC FAILED', error.message);
+    });
+  }
+
+  _storeLocalProfile() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.profile));
     } catch (e) {
@@ -423,7 +505,28 @@ export class ProfileManager {
     }
   }
 
-  logout() {
+  _queueServerSave() {
+    if (!this.authenticated || !this.profile) return Promise.resolve();
+    const profile = JSON.stringify(this.profile);
+    const save = this.saveChain.catch(() => {})
+      .then(() => accountRequest('/api/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify({ profile: JSON.parse(profile) })
+      }))
+      .then((result) => {
+        this.onSyncState?.('PROFILE SAVED TO SERVER', '');
+        return result;
+      });
+    this.saveChain = save;
+    return save;
+  }
+
+  async logout() {
+    await this._queueServerSave();
+    if (this.authenticated) {
+      await accountRequest('/api/auth/logout', { method: 'POST', body: '{}' });
+    }
+    this.authenticated = false;
     localStorage.removeItem(STORAGE_KEY);
     this.profile = null;
   }

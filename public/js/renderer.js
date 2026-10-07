@@ -10,6 +10,18 @@
 
 import { TILE_TYPES } from '/shared/map.js';
 import { PHYSICS_CONFIG } from '/shared/physics.js';
+import { WEAPON_REGISTRY } from '/shared/weapons.js';
+
+const CARRIED_WEAPON_STYLES = {
+  akm: { length: 43, body: '#252321', furniture: '#70452b', mag: '#282624' },
+  scarh: { length: 46, body: '#343a32', furniture: '#555b50', mag: '#242822' },
+  mdr: { length: 38, body: '#363932', furniture: '#4a5046', mag: '#292d28' },
+  mp7: { length: 29, body: '#343941', furniture: '#252a31', mag: '#252a31' },
+  p90: { length: 32, body: '#50534b', furniture: '#41443e', mag: '#30332f' },
+  ump45: { length: 34, body: '#292e34', furniture: '#3b4149', mag: '#22272c' },
+  sv98: { length: 49, body: '#252a2c', furniture: '#68472e', mag: '#24282a' },
+  m1911: { length: 23, body: '#22262b', furniture: '#30363c', mag: '#171a1e' }
+};
 
 export class TacticalRenderer {
   constructor(canvas) {
@@ -29,6 +41,10 @@ export class TacticalRenderer {
     this.map = null;
     this.tileSize = 32;
     this.zoom = 1.5;
+    this.bloodParticles = [];
+    this.lastParticleUpdate = 0;
+    this.hitMarkerUntil = 0;
+    this.hitMarkerIsKill = false;
 
     this.fogCanvas = document.createElement('canvas');
     this.fogCtx = this.fogCanvas.getContext('2d');
@@ -84,6 +100,20 @@ export class TacticalRenderer {
             sCtx.strokeStyle = '#1b212a';
             sCtx.lineWidth = 0.8;
             sCtx.strokeRect(x, y, ts, ts);
+            const mark = (tx * 17 + ty * 31) % 5;
+            if (mark === 0) {
+              sCtx.fillStyle = '#202630';
+              sCtx.fillRect(x + ts * 0.22, y + ts * 0.3, 3, 3);
+              sCtx.fillRect(x + ts * 0.7, y + ts * 0.65, 2, 2);
+            } else if (mark === 1) {
+              sCtx.strokeStyle = '#0d1117';
+              sCtx.lineWidth = 1;
+              sCtx.beginPath();
+              sCtx.moveTo(x + ts * 0.3, y + ts * 0.25);
+              sCtx.lineTo(x + ts * 0.42, y + ts * 0.48);
+              sCtx.lineTo(x + ts * 0.36, y + ts * 0.62);
+              sCtx.stroke();
+            }
             break;
           }
           case TILE_TYPES.FLOOR_OFFICE: {
@@ -92,6 +122,13 @@ export class TacticalRenderer {
             sCtx.strokeStyle = '#303947';
             sCtx.lineWidth = 0.8;
             sCtx.strokeRect(x, y, ts, ts);
+            sCtx.strokeStyle = '#353e49';
+            sCtx.beginPath();
+            sCtx.moveTo(x + ts * 0.5, y + 2);
+            sCtx.lineTo(x + ts * 0.5, y + ts - 2);
+            sCtx.moveTo(x + 2, y + ts * 0.5);
+            sCtx.lineTo(x + ts - 2, y + ts * 0.5);
+            sCtx.stroke();
             break;
           }
           case TILE_TYPES.METAL_GRATE: {
@@ -113,7 +150,15 @@ export class TacticalRenderer {
             sCtx.lineWidth = 1.2;
             sCtx.strokeRect(x, y, ts, ts);
             sCtx.fillStyle = '#2a3340';
-            sCtx.fillRect(x + 2, y + 2, ts - 4, 3);
+            sCtx.fillRect(x + 2, y + 2, ts - 4, 5);
+            sCtx.strokeStyle = '#151a21';
+            sCtx.lineWidth = 1;
+            sCtx.beginPath();
+            sCtx.moveTo(x + 2, y + ts * 0.52);
+            sCtx.lineTo(x + ts - 2, y + ts * 0.52);
+            sCtx.moveTo(x + ts * 0.48, y + ts * 0.52);
+            sCtx.lineTo(x + ts * 0.48, y + ts - 2);
+            sCtx.stroke();
             break;
           }
           case TILE_TYPES.WALL_CONTAINER: {
@@ -128,6 +173,9 @@ export class TacticalRenderer {
               sCtx.moveTo(x + i, y + 2); sCtx.lineTo(x + i, y + ts - 2);
               sCtx.stroke();
             }
+            sCtx.fillStyle = '#a45b45';
+            sCtx.fillRect(x + 3, y + 5, 2, 2);
+            sCtx.fillRect(x + ts - 5, y + ts - 7, 2, 2);
             break;
           }
           case TILE_TYPES.COVER_CRATE: {
@@ -140,6 +188,11 @@ export class TacticalRenderer {
             sCtx.moveTo(x + 2, y + 2); sCtx.lineTo(x + ts - 2, y + ts - 2);
             sCtx.moveTo(x + ts - 2, y + 2); sCtx.lineTo(x + 2, y + ts - 2);
             sCtx.stroke();
+            sCtx.strokeStyle = '#9b7657';
+            sCtx.beginPath();
+            sCtx.moveTo(x + ts / 2, y + 3); sCtx.lineTo(x + ts / 2, y + ts - 3);
+            sCtx.moveTo(x + 3, y + ts / 2); sCtx.lineTo(x + ts - 3, y + ts / 2);
+            sCtx.stroke();
             break;
           }
           case TILE_TYPES.DOOR_FRAME: {
@@ -148,13 +201,46 @@ export class TacticalRenderer {
             sCtx.strokeStyle = '#d4a359';
             sCtx.lineWidth = 1.5;
             sCtx.strokeRect(x + 3, y + 3, ts - 6, ts - 6);
+            sCtx.fillStyle = '#d4a359';
+            sCtx.fillRect(x + ts * 0.45, y + 5, 4, ts - 10);
+            sCtx.fillStyle = '#687481';
+            sCtx.beginPath();
+            sCtx.arc(x + 7, y + 7, 1.5, 0, Math.PI * 2);
+            sCtx.arc(x + ts - 7, y + 7, 1.5, 0, Math.PI * 2);
+            sCtx.fill();
+            break;
+          }
+          case TILE_TYPES.BLAST_DOOR: {
+            sCtx.fillStyle = '#10151b';
+            sCtx.fillRect(x, y, ts, ts);
+            sCtx.fillStyle = '#37434d';
+            sCtx.fillRect(x + 3, y + 3, ts - 6, ts - 6);
+            sCtx.strokeStyle = '#c0392b';
+            sCtx.lineWidth = 2;
+            sCtx.strokeRect(x + 3, y + 3, ts - 6, ts - 6);
+            sCtx.strokeStyle = '#d4a359';
+            sCtx.lineWidth = 1;
+            sCtx.beginPath();
+            sCtx.moveTo(x + ts * 0.5, y + 5);
+            sCtx.lineTo(x + ts * 0.5, y + ts - 5);
+            sCtx.stroke();
+            sCtx.fillStyle = '#d4a359';
+            sCtx.fillRect(x + 6, y + 6, 3, 3);
+            sCtx.fillRect(x + ts - 9, y + ts - 9, 3, 3);
             break;
           }
           case TILE_TYPES.FORKLIFT_PROP: {
             sCtx.fillStyle = '#f39c12';
-            sCtx.fillRect(x + 4, y + 6, ts - 8, ts - 12);
-            sCtx.fillStyle = '#2c3e50';
-            sCtx.fillRect(x + ts - 6, y + 8, 4, ts - 16);
+            sCtx.fillRect(x + 7, y + 7, ts - 17, ts - 14);
+            sCtx.fillStyle = '#24303a';
+            sCtx.fillRect(x + 12, y + 10, ts - 26, ts - 20);
+            sCtx.fillStyle = '#080a0d';
+            sCtx.fillRect(x + 5, y + 8, 4, 8);
+            sCtx.fillRect(x + 5, y + ts - 16, 4, 8);
+            sCtx.fillRect(x + ts - 12, y + 8, 4, 8);
+            sCtx.fillRect(x + ts - 12, y + ts - 16, 4, 8);
+            sCtx.fillStyle = '#c7d0d8';
+            sCtx.fillRect(x + ts - 7, y + 8, 3, ts - 16);
             break;
           }
           case TILE_TYPES.RAILROAD_TRACK: {
@@ -166,6 +252,20 @@ export class TacticalRenderer {
             sCtx.fillStyle = '#7f8c8d';
             sCtx.fillRect(x + 6, y, 3, ts);
             sCtx.fillRect(x + ts - 9, y, 3, ts);
+            break;
+          }
+          case TILE_TYPES.ROAD_ASPHALT: {
+            sCtx.fillStyle = ((tx + ty) % 2 === 0) ? '#20252a' : '#1d2227';
+            sCtx.fillRect(x, y, ts, ts);
+            sCtx.strokeStyle = '#292f35';
+            sCtx.lineWidth = 0.8;
+            sCtx.strokeRect(x, y, ts, ts);
+            sCtx.fillStyle = '#b39b59';
+            if (tx === 50 || tx === 97) {
+              if (ty % 2 === 0) sCtx.fillRect(x + ts / 2 - 1, y + 4, 2, 12);
+            } else if (ty === 50 || ty === 97) {
+              if (tx % 2 === 0) sCtx.fillRect(x + 4, y + ts / 2 - 1, 12, 2);
+            }
             break;
           }
           default: {
@@ -211,6 +311,56 @@ export class TacticalRenderer {
 
   triggerBloodFlash() {
     this.bloodFlashAlpha = 0.75;
+  }
+
+  emitBloodParticles(x, y) {
+    for (let i = 0; i < 10; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 24 + Math.random() * 82;
+      const lifetime = 0.35 + Math.random() * 0.3;
+      this.bloodParticles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 22,
+        lifetime,
+        maxLifetime: lifetime,
+        size: 1.5 + Math.random() * 2.5
+      });
+    }
+  }
+
+  triggerHitMarker(killed = false, worldX = this.camera.x, worldY = this.camera.y) {
+    this.hitMarkerUntil = performance.now() + 240;
+    this.hitMarkerIsKill = killed;
+    this.hitMarkerX = worldX;
+    this.hitMarkerY = worldY;
+  }
+
+  _renderBloodParticles(ctx) {
+    const now = performance.now();
+    const dt = this.lastParticleUpdate ? Math.min((now - this.lastParticleUpdate) / 1000, 0.05) : 0;
+    this.lastParticleUpdate = now;
+
+    for (let i = this.bloodParticles.length - 1; i >= 0; i--) {
+      const particle = this.bloodParticles[i];
+      particle.lifetime -= dt;
+      if (particle.lifetime <= 0) {
+        this.bloodParticles.splice(i, 1);
+        continue;
+      }
+
+      particle.x += particle.vx * dt;
+      particle.y += particle.vy * dt;
+      particle.vx *= 0.96;
+      particle.vy += 75 * dt;
+      ctx.globalAlpha = particle.lifetime / particle.maxLifetime;
+      ctx.fillStyle = '#b51f24';
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   updateCamera(targetX, targetY, isAiming = false) {
@@ -304,6 +454,7 @@ export class TacticalRenderer {
         }
       }
     }
+    this._renderBloodParticles(ctx);
 
     // 5. REMOTE SQUAD MEMBERS
     for (const remote of squadPlayers) {
@@ -408,6 +559,7 @@ export class TacticalRenderer {
       this._renderInteractionPrompt(ctx, viewW, viewH, promptContainer);
     }
 
+    this._renderHitMarker(ctx, viewW, viewH);
     this._renderTacticalVignette(ctx, viewW, viewH, localPlayer?.isAiming);
   }
 
@@ -635,6 +787,21 @@ export class TacticalRenderer {
             break;
           }
 
+          case TILE_TYPES.ROAD_ASPHALT: {
+            ctx.fillStyle = ((tx + ty) % 2 === 0) ? '#20252a' : '#1d2227';
+            ctx.fillRect(x, y, ts, ts);
+            ctx.strokeStyle = '#292f35';
+            ctx.lineWidth = 0.8;
+            ctx.strokeRect(x, y, ts, ts);
+            ctx.fillStyle = '#b39b59';
+            if (tx === 50 || tx === 97) {
+              if (ty % 2 === 0) ctx.fillRect(x + ts / 2 - 1, y + 4, 2, 12);
+            } else if (ty === 50 || ty === 97) {
+              if (tx % 2 === 0) ctx.fillRect(x + 4, y + ts / 2 - 1, 12, 2);
+            }
+            break;
+          }
+
           case TILE_TYPES.WALL_SOLID: {
             ctx.fillStyle = '#1c2026';
             ctx.fillRect(x, y, ts, ts);
@@ -726,7 +893,28 @@ export class TacticalRenderer {
     ctx.save();
     ctx.translate(c.x, c.y);
 
-    if (c.type === 'crate_military') {
+    if (c.type === 'weapon_drop') {
+      const weapon = c.items?.[0];
+      const weaponType = weapon?.weaponType || weapon?.id;
+      const weaponDef = WEAPON_REGISTRY[weaponType];
+      this._renderGroundWeapon(ctx, weaponType, weaponDef);
+    } else if (c.type === 'item_drop') {
+      const item = c.items?.[0];
+      const color = item?.color || '#7f8c8d';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(0, 5, 13, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#293238';
+      ctx.fillRect(-9, -7, 18, 13);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-9, -7, 18, 13);
+      ctx.fillStyle = color;
+      ctx.font = 'bold 8px Consolas, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText((item?.tag || 'ITEM').slice(0, 4), 0, 2);
+    } else if (c.type === 'crate_military') {
       ctx.fillStyle = '#253528';
       ctx.fillRect(-18, -12, 36, 24);
       ctx.fillStyle = '#324736';
@@ -784,6 +972,235 @@ export class TacticalRenderer {
       ctx.fillRect(-5, -2, 10, 4);
     }
 
+    ctx.restore();
+  }
+
+  _renderGroundWeapon(ctx, weaponType, weaponDef) {
+    const color = weaponDef?.color || '#95a5a6';
+    const dark = '#20272b';
+    const metal = '#687681';
+    const accent = color;
+    const polygon = (points, fill) => {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.moveTo(points[0][0], points[0][1]);
+      for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+      ctx.closePath();
+      ctx.fill();
+    };
+
+    ctx.save();
+    ctx.rotate(-0.18);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 29, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    switch (weaponType) {
+      case 'm4a1':
+        polygon([[-27, -4], [-19, -5], [-13, -3], [-13, 3], [-21, 4], [-27, 2]], '#48513e');
+        ctx.fillStyle = dark;
+        ctx.fillRect(-14, -4, 25, 8);
+        polygon([[-1, 3], [5, 4], [3, 13], [-2, 12]], '#48513e');
+        ctx.fillStyle = metal;
+        ctx.fillRect(10, -2, 15, 4);
+        ctx.fillRect(-9, -7, 12, 2);
+        break;
+      case 'ak74m':
+        polygon([[-28, -4], [-18, -5], [-11, -3], [-12, 3], [-22, 4], [-28, 2]], '#8b623b');
+        polygon([[-15, -5], [8, -4], [13, -1], [10, 4], [-14, 4]], dark);
+        polygon([[-4, 3], [3, 4], [8, 12], [2, 14], [-2, 7]], '#8b623b');
+        ctx.fillStyle = metal;
+        ctx.fillRect(12, -1, 16, 2);
+        ctx.fillRect(-8, -7, 16, 2);
+        break;
+      case 'akm':
+        polygon([[-30, -4], [-18, -6], [-10, -3], [-12, 3], [-24, 4], [-31, 2]], '#815735');
+        polygon([[-14, -5], [8, -4], [13, -1], [10, 4], [-14, 4]], dark);
+        polygon([[-4, 3], [4, 4], [8, 14], [2, 15], [-3, 7]], '#75472c');
+        ctx.fillStyle = metal;
+        ctx.fillRect(12, -2, 18, 4);
+        polygon([[1, 4], [7, 4], [12, 12], [6, 14]], accent);
+        break;
+      case 'mdr':
+        polygon([[-24, -5], [-7, -6], [-3, -3], [-5, 4], [-22, 4]], '#7a674c');
+        polygon([[-8, -5], [8, -5], [13, -2], [12, 4], [-8, 4]], dark);
+        polygon([[-4, 3], [2, 4], [4, 14], [-2, 14]], '#6d5b43');
+        ctx.fillStyle = metal;
+        ctx.fillRect(12, -2, 19, 4);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-16, -7, 8, 2);
+        break;
+      case 'scarh':
+        polygon([[-30, -4], [-19, -5], [-12, -3], [-13, 4], [-27, 5], [-32, 1]], '#a17f4f');
+        polygon([[-13, -5], [8, -5], [14, -2], [12, 4], [-14, 4]], '#4a514b');
+        polygon([[-4, 3], [3, 4], [5, 13], [-1, 13]], '#8f734b');
+        ctx.fillStyle = metal;
+        ctx.fillRect(13, -2, 19, 4);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-3, -7, 7, 2);
+        break;
+      case 'mp7':
+        polygon([[-20, -5], [-8, -6], [-4, -3], [-5, 4], [-20, 4]], '#484d4c');
+        polygon([[-8, -4], [10, -4], [14, 0], [10, 4], [-8, 4]], dark);
+        ctx.fillStyle = metal;
+        ctx.fillRect(12, -2, 16, 4);
+        polygon([[-2, 3], [4, 4], [4, 12], [-2, 11]], '#353b3a');
+        ctx.fillStyle = accent;
+        ctx.fillRect(-5, -7, 8, 2);
+        break;
+      case 'p90':
+        polygon([[-23, -6], [8, -6], [13, -3], [12, 5], [-23, 5], [-27, 1]], '#343d40');
+        polygon([[-5, 3], [2, 4], [2, 12], [-4, 11]], '#252c30');
+        ctx.fillStyle = accent;
+        ctx.fillRect(-19, -4, 18, 2);
+        ctx.fillStyle = metal;
+        ctx.fillRect(12, -2, 18, 4);
+        break;
+      case 'ump45':
+        polygon([[-23, -4], [-13, -5], [-8, -2], [-10, 4], [-22, 4], [-26, 1]], '#414747');
+        polygon([[-12, -5], [9, -4], [13, 0], [9, 4], [-12, 4]], dark);
+        polygon([[-2, 3], [5, 4], [7, 12], [1, 13]], '#3e4547');
+        ctx.fillStyle = metal;
+        ctx.fillRect(11, -2, 17, 4);
+        polygon([[4, 4], [9, 4], [11, 13], [6, 14]], accent);
+        break;
+      case 'sv98':
+        polygon([[-32, -4], [-20, -6], [-9, -4], [5, -4], [10, 0], [5, 4], [-20, 5], [-31, 2]], '#657853');
+        ctx.fillStyle = metal;
+        ctx.fillRect(7, -2, 24, 4);
+        ctx.fillRect(-4, -7, 13, 2);
+        ctx.fillStyle = accent;
+        ctx.fillRect(22, -3, 9, 6);
+        break;
+      case 'm1911':
+        polygon([[-15, -4], [8, -4], [12, -2], [12, 2], [4, 3], [2, 11], [-4, 12], [-7, 3], [-15, 2]], '#403f39');
+        ctx.fillStyle = metal;
+        ctx.fillRect(11, -2, 11, 4);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-12, -5, 12, 2);
+        ctx.fillStyle = '#191d1e';
+        ctx.fillRect(-4, 3, 5, 7);
+        break;
+      case 'asval':
+        polygon([[-25, -3], [-17, -5], [-11, -3], [-12, 3], [-21, 4], [-26, 2]], dark);
+        polygon([[-14, -4], [11, -4], [15, 0], [11, 4], [-14, 4]], '#263a34');
+        polygon([[-2, 3], [5, 4], [3, 12], [-2, 11]], dark);
+        ctx.fillStyle = '#59635e';
+        ctx.fillRect(12, -4, 15, 8);
+        ctx.fillStyle = accent;
+        ctx.fillRect(16, -3, 2, 6);
+        ctx.fillRect(21, -3, 2, 6);
+        break;
+      case 'vss':
+        polygon([[-25, -3], [-18, -5], [-12, -3], [-13, 3], [-22, 4], [-26, 1]], '#53624b');
+        polygon([[-15, -4], [9, -3], [13, 0], [9, 4], [-15, 4]], dark);
+        polygon([[-2, 3], [4, 4], [2, 11], [-3, 10]], '#53624b');
+        ctx.fillStyle = '#737f77';
+        ctx.fillRect(11, -4, 16, 8);
+        ctx.fillStyle = '#26332e';
+        for (let x = 14; x < 27; x += 4) ctx.fillRect(x, -3, 1, 6);
+        break;
+      case 'vector':
+        polygon([[-21, -4], [-14, -5], [-10, -2], [-12, 4], [-20, 4], [-24, 1]], '#45414d');
+        polygon([[-12, -5], [9, -5], [14, -2], [11, 4], [-12, 4]], dark);
+        polygon([[-1, 3], [5, 4], [12, 12], [7, 14], [0, 7]], '#45414d');
+        polygon([[9, -2], [28, -2], [28, 2], [10, 2]], metal);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-7, -3, 5, 2);
+        break;
+      case 'mpx':
+        polygon([[-25, -3], [-17, -5], [-12, -3], [-13, 3], [-23, 3], [-27, 1]], '#3e4449');
+        ctx.fillStyle = dark;
+        ctx.fillRect(-15, -4, 25, 8);
+        polygon([[-3, 3], [4, 4], [3, 13], [-2, 12]], '#3e4449');
+        ctx.fillStyle = metal;
+        ctx.fillRect(10, -2, 17, 4);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-5, -6, 8, 2);
+        break;
+      case 'saiga12':
+        polygon([[-27, -3], [-19, -5], [-12, -3], [-13, 3], [-22, 3], [-28, 1]], '#73553d');
+        polygon([[-14, -4], [10, -4], [14, 0], [10, 4], [-14, 4]], '#353b3e');
+        ctx.fillStyle = '#70797c';
+        ctx.fillRect(12, -2, 18, 4);
+        ctx.fillStyle = '#4b5254';
+        ctx.fillRect(-7, 5, 15, 3);
+        ctx.fillStyle = accent;
+        ctx.fillRect(22, -3, 5, 6);
+        break;
+      case 'mp5':
+        polygon([[-26, -4], [-16, -5], [-12, -2], [-13, 3], [-22, 4], [-28, 1]], '#4d514a');
+        polygon([[-14, -5], [9, -4], [14, 0], [9, 4], [-14, 4]], '#30373a');
+        polygon([[-3, 3], [4, 4], [5, 12], [0, 13], [-2, 7]], '#343a38');
+        ctx.fillStyle = metal;
+        ctx.fillRect(11, -2, 17, 4);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-5, -6, 8, 2);
+        break;
+      case 'mosin':
+        polygon([[-30, -3], [-20, -5], [-10, -4], [10, -3], [15, 0], [9, 4], [-18, 5], [-28, 3]], '#8a6039');
+        ctx.fillStyle = metal;
+        ctx.fillRect(-7, -2, 35, 4);
+        ctx.fillRect(-3, -5, 2, 8);
+        ctx.fillStyle = dark;
+        ctx.fillRect(-2, -6, 5, 2);
+        ctx.fillStyle = accent;
+        ctx.fillRect(24, -3, 5, 6);
+        break;
+      case 'rpk16':
+        polygon([[-29, -4], [-18, -5], [-12, -3], [-13, 3], [-24, 4], [-30, 1]], '#46513b');
+        polygon([[-15, -5], [12, -4], [15, 0], [11, 4], [-15, 4]], dark);
+        ctx.fillStyle = metal;
+        ctx.fillRect(13, -2, 19, 4);
+        polygon([[-3, 3], [5, 4], [8, 12], [2, 14], [-2, 7]], '#46513b');
+        ctx.fillStyle = '#343b3d';
+        ctx.beginPath();
+        ctx.ellipse(0, 7, 6, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = metal;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(18, 3);
+        ctx.lineTo(15, 11);
+        ctx.moveTo(26, 3);
+        ctx.lineTo(29, 11);
+        ctx.stroke();
+        break;
+      case 'goldentt':
+        polygon([[-15, -4], [8, -4], [13, -2], [14, 2], [5, 3], [4, 11], [-3, 12], [-7, 3], [-15, 2]], '#ad8530');
+        ctx.fillStyle = '#f3cd56';
+        ctx.fillRect(13, -2, 10, 4);
+        ctx.fillRect(-12, -5, 10, 2);
+        ctx.fillStyle = '#604c26';
+        ctx.fillRect(-3, 3, 5, 6);
+        break;
+      case 'glock17':
+        polygon([[-14, -4], [8, -4], [12, -2], [13, 2], [5, 3], [4, 12], [-4, 13], [-8, 3], [-14, 2]], '#333b40');
+        ctx.fillStyle = metal;
+        ctx.fillRect(11, -2, 11, 4);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-11, -5, 14, 2);
+        ctx.fillStyle = '#171d20';
+        ctx.fillRect(-4, 4, 5, 7);
+        break;
+      case 'melee':
+        polygon([[-20, -3], [-12, -4], [-8, -2], [-8, 2], [-14, 4], [-21, 2]], '#71503b');
+        polygon([[-8, -2], [17, -3], [28, 0], [17, 3], [-8, 2]], '#bac4c7');
+        ctx.fillStyle = accent;
+        ctx.fillRect(-10, -4, 3, 8);
+        ctx.fillStyle = '#eef2f3';
+        ctx.fillRect(10, -1, 12, 1);
+        break;
+      default:
+        ctx.fillStyle = dark;
+        ctx.fillRect(-18, -4, 34, 8);
+        ctx.fillStyle = metal;
+        ctx.fillRect(14, -2, 15, 4);
+    }
+
+    ctx.fillStyle = '#101518';
+    ctx.fillRect(-2, -2, 4, 1);
     ctx.restore();
   }
 
@@ -1002,6 +1419,13 @@ export class TacticalRenderer {
       ctx.fillRect(-2, -7.5, 3.5, 15);
     }
 
+    if (bot.hitFlashUntil > performance.now()) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(-3, 0, 12, 15, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // Alert indicator cone (if in ATTACK or COMBAT)
     if (bot.state === 'ATTACK' || bot.state === 'COMBAT') {
       ctx.strokeStyle = bot.isBoss ? 'rgba(241, 196, 15, 0.45)' : 'rgba(231, 76, 60, 0.35)';
@@ -1106,13 +1530,14 @@ export class TacticalRenderer {
     const angle = player.angle || 0;
     const squadColor = player.color || '#2ecc71';
     const isFiring = !!player.isFiring;
+    const isUnarmed = !player.activeWeaponType || player.activeWeaponType === 'none';
 
     ctx.save();
     ctx.translate(px, py);
 
-    const device = player.tacticalDevice || (isLocal ? 'LASER' : 'OFF');
+    const device = isUnarmed ? 'OFF' : (player.tacticalDevice || (isLocal ? 'LASER' : 'OFF'));
 
-    if (device === 'LASER') {
+    if (device === 'LASER' && !isUnarmed) {
       ctx.save();
       ctx.rotate(angle);
       ctx.beginPath();
@@ -1189,7 +1614,11 @@ export class TacticalRenderer {
     // Arms
     ctx.fillStyle = uniformColor;
     ctx.beginPath();
-    ctx.moveTo(-3, -12); ctx.lineTo(10, -11); ctx.lineTo(18, -4); ctx.lineTo(15, -1); ctx.lineTo(7, -8); ctx.lineTo(-3, -9);
+    if (isUnarmed) {
+      ctx.moveTo(-5, -9); ctx.lineTo(-8, -13); ctx.lineTo(-13, -11); ctx.lineTo(-10, -6); ctx.lineTo(-5, -5);
+    } else {
+      ctx.moveTo(-3, -12); ctx.lineTo(10, -11); ctx.lineTo(18, -4); ctx.lineTo(15, -1); ctx.lineTo(7, -8); ctx.lineTo(-3, -9);
+    }
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = '#151a16';
@@ -1197,12 +1626,16 @@ export class TacticalRenderer {
 
     ctx.fillStyle = '#1c1f24';
     ctx.beginPath();
-    ctx.arc(17, -4, 3, 0, Math.PI * 2);
+    ctx.arc(isUnarmed ? -13 : 17, isUnarmed ? -11 : -4, 3, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = uniformColor;
     ctx.beginPath();
-    ctx.moveTo(-3, 12); ctx.lineTo(8, 11); ctx.lineTo(13, 4); ctx.lineTo(10, 2); ctx.lineTo(6, 8); ctx.lineTo(-3, 9);
+    if (isUnarmed) {
+      ctx.moveTo(-5, 9); ctx.lineTo(-8, 13); ctx.lineTo(-13, 11); ctx.lineTo(-10, 6); ctx.lineTo(-5, 5);
+    } else {
+      ctx.moveTo(-3, 12); ctx.lineTo(8, 11); ctx.lineTo(13, 4); ctx.lineTo(10, 2); ctx.lineTo(6, 8); ctx.lineTo(-3, 9);
+    }
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = '#151a16';
@@ -1210,16 +1643,17 @@ export class TacticalRenderer {
 
     ctx.fillStyle = '#1c1f24';
     ctx.beginPath();
-    ctx.arc(12, 4, 3, 0, Math.PI * 2);
+    ctx.arc(isUnarmed ? -13 : 12, isUnarmed ? 11 : 4, 3, 0, Math.PI * 2);
     ctx.fill();
 
     // RENDER ACTIVE WEAPON (M4A1, AK-74M, MP5, Mosin, Glock-17, Melee Hatchet)
-    const wep = player.activeWeaponType || 'melee';
-    let muzzleOffset = 38;
-    let isFirearm = true;
+    const wep = player.activeWeaponType || 'none';
+    let muzzleOffset = 0;
+    let isFirearm = false;
 
-    if (wep === 'melee') {
-      isFirearm = false;
+    if (wep === 'none') {
+      // Empty loadout slot: render no weapon in the operator's hands.
+    } else if (wep === 'melee') {
       // Tactical Hatchet in hands
       ctx.fillStyle = '#4a3728'; // Wooden/polymer shaft
       ctx.fillRect(10, -3, 14, 2.5);
@@ -1401,6 +1835,37 @@ export class TacticalRenderer {
       ctx.fillRect(26, -1, 16, 2);
       ctx.fillStyle = '#3d4652';
       ctx.fillRect(42, -1.5, 3, 3); // Hooded front sight
+    } else if (CARRIED_WEAPON_STYLES[wep]) {
+      const style = CARRIED_WEAPON_STYLES[wep];
+      muzzleOffset = style.length;
+      ctx.fillStyle = style.furniture;
+      ctx.fillRect(1, -2, wep === 'sv98' ? 22 : 12, 4);
+      ctx.fillStyle = style.body;
+      ctx.fillRect(wep === 'm1911' ? 6 : 10, -2.5, style.length - 15, 5);
+      ctx.fillStyle = style.mag;
+      if (wep === 'akm') {
+        ctx.beginPath();
+        ctx.moveTo(12, 2); ctx.lineTo(16, 2); ctx.lineTo(18, 9); ctx.lineTo(14, 9);
+        ctx.closePath();
+        ctx.fill();
+      } else if (wep === 'p90') {
+        ctx.fillRect(12, -5, 14, 3);
+        ctx.fillRect(13, 2, 7, 3);
+      } else if (wep === 'sv98') {
+        ctx.fillRect(15, -6, 11, 3);
+        ctx.fillRect(15, 2, 4, 5);
+      } else if (wep === 'm1911') {
+        ctx.fillRect(9, 2, 3, 5);
+        ctx.fillRect(6, -1, 3, 2);
+      } else {
+        ctx.fillRect(wep === 'mdr' ? 12 : 14, 2, wep === 'scarh' ? 5 : 4, wep === 'mp7' ? 6 : 8);
+      }
+      if (wep === 'mp7' || wep === 'ump45') {
+        ctx.fillStyle = '#161a1f';
+        ctx.fillRect(10, 2, 3, 6);
+      }
+      ctx.fillStyle = '#15191d';
+      ctx.fillRect(style.length - 5, -1.5, 5, 3);
     } else {
       // Colt M4A1 5.56x45 NATO Carbine
       muzzleOffset = 38;
@@ -1436,7 +1901,6 @@ export class TacticalRenderer {
       ctx.fill();
       ctx.restore();
     }
-
     // FAST Helmet
     ctx.beginPath();
     ctx.arc(-2, 0, 7.5, 0, Math.PI * 2);
@@ -1450,7 +1914,7 @@ export class TacticalRenderer {
     ctx.fillStyle = '#111417';
     ctx.fillRect(3.5, -2.5, 2.5, 5);
 
-    if (player.isAiming) {
+    if (player.isAiming && !isUnarmed) {
       ctx.strokeStyle = 'rgba(212, 163, 89, 0.4)';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -1483,7 +1947,7 @@ export class TacticalRenderer {
 
   _renderInteractionPrompt(ctx, viewW, viewH, container) {
     const boxW = 280;
-    const boxH = 42;
+    const boxH = 54;
     const bx = viewW / 2 - boxW / 2;
     const by = viewH / 2 + 70;
 
@@ -1505,6 +1969,8 @@ export class TacticalRenderer {
     ctx.fillStyle = '#788597';
     ctx.font = '10px Consolas, monospace';
     ctx.fillText(`CONTAINER: ${container.type.replace('_', ' ').toUpperCase()}`, bx + 16, by + 32);
+    ctx.fillStyle = '#c67a4b';
+    ctx.fillText('SEARCHING CAN ALERT NEARBY SCAVS', bx + 16, by + 46);
     ctx.restore();
   }
 
@@ -1524,6 +1990,32 @@ export class TacticalRenderer {
       ctx.fillRect(0, 0, w, h);
       this.bloodFlashAlpha *= 0.88; // Smooth fade out
     }
+  }
+
+  _renderHitMarker(ctx, w, h) {
+    const remaining = this.hitMarkerUntil - performance.now();
+    if (remaining <= 0) return;
+    const x = w / 2 + this.camera.shakeX + (this.hitMarkerX - this.camera.x) * this.zoom;
+    const y = h / 2 + this.camera.shakeY + (this.hitMarkerY - this.camera.y) * this.zoom;
+    if (x < 0 || x > w || y < 0 || y > h) return;
+
+    const alpha = Math.min(1, remaining / 80);
+    const color = this.hitMarkerIsKill ? '#ffb347' : '#f4f1e8';
+    const radius = this.hitMarkerIsKill ? 12 : 9;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = this.hitMarkerIsKill ? 2.5 : 2;
+    ctx.lineCap = 'round';
+    for (const direction of [-1, 1]) {
+      for (const vertical of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(x + direction * 3, y + vertical * 3);
+        ctx.lineTo(x + direction * radius, y + vertical * radius);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
   }
 
   _renderGrenadeEntity(ctx, g) {

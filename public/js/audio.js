@@ -69,7 +69,7 @@ class TacticalAudioEngine {
     return !!this.ctx;
   }
 
-  playGunshot(soundType = 'm4a1', isFullAuto = false) {
+  playGunshot(soundType = 'm4a1', isFullAuto = false, volumeScale = 1) {
     if (!this.ensureContext() || !this.noiseBuffer) return;
     const now = this.ctx.currentTime;
 
@@ -80,7 +80,7 @@ class TacticalAudioEngine {
     crackOsc.frequency.exponentialRampToValueAtTime(700, now + 0.018);
 
     const crackGain = this.ctx.createGain();
-    crackGain.gain.setValueAtTime(0.65, now);
+    crackGain.gain.setValueAtTime(0.65 * volumeScale, now);
     crackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.018);
 
     crackOsc.connect(crackGain);
@@ -160,7 +160,7 @@ class TacticalAudioEngine {
     noiseFilter.Q.setValueAtTime(q, now);
 
     const noiseGain = this.ctx.createGain();
-    noiseGain.gain.setValueAtTime(gainVal, now);
+    noiseGain.gain.setValueAtTime(gainVal * volumeScale, now);
     noiseGain.gain.exponentialRampToValueAtTime(0.001, now + decay);
 
     noise.connect(noiseFilter);
@@ -177,7 +177,7 @@ class TacticalAudioEngine {
     subOsc.frequency.exponentialRampToValueAtTime(30, now + Math.min(0.12, decay));
 
     const subGain = this.ctx.createGain();
-    subGain.gain.setValueAtTime(gainVal * 0.9, now);
+    subGain.gain.setValueAtTime(gainVal * 0.9 * volumeScale, now);
     subGain.gain.exponentialRampToValueAtTime(0.001, now + Math.min(0.12, decay));
 
     subOsc.connect(subGain);
@@ -267,6 +267,24 @@ class TacticalAudioEngine {
     osc.stop(now + 0.025);
   }
 
+  playHitConfirm(killed = false) {
+    if (!this.ensureContext()) return;
+    const now = this.ctx.currentTime;
+    const tones = killed ? [{ frequency: 760, time: 0 }, { frequency: 1180, time: 0.055 }] : [{ frequency: 940, time: 0 }];
+    for (const tone of tones) {
+      const oscillator = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(tone.frequency, now + tone.time);
+      gain.gain.setValueAtTime(0.12, now + tone.time);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + tone.time + 0.045);
+      oscillator.connect(gain);
+      gain.connect(this.ctx.destination);
+      oscillator.start(now + tone.time);
+      oscillator.stop(now + tone.time + 0.045);
+    }
+  }
+
   playReload(isFast = false) {
     if (!this.ensureContext()) return;
     const now = this.ctx.currentTime;
@@ -305,7 +323,7 @@ class TacticalAudioEngine {
     slapOsc.stop(insertTime + 0.06);
   }
 
-  playFootstep(stance = 'STAND') {
+  playFootstep(stance = 'STAND', volumeScale = 1) {
     if (!this.ensureContext() || !this.noiseBuffer) return;
     const now = this.ctx.currentTime;
 
@@ -334,7 +352,7 @@ class TacticalAudioEngine {
     filter.frequency.setValueAtTime(filterFreq, now);
 
     const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(volume, now);
+    gain.gain.setValueAtTime(volume * volumeScale, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
     noise.connect(filter);
@@ -351,7 +369,7 @@ class TacticalAudioEngine {
     popOsc.frequency.exponentialRampToValueAtTime(32, now + duration);
 
     const popGain = this.ctx.createGain();
-    popGain.gain.setValueAtTime(volume * 0.7, now);
+    popGain.gain.setValueAtTime(volume * 0.7 * volumeScale, now);
     popGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
     popOsc.connect(popGain);

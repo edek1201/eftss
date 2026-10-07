@@ -60,12 +60,12 @@ class GameClient {
       isCrouching: false,
       isAiming: false,
       isFiring: false,
-      tacticalDevice: 'LASER',
+      tacticalDevice: 'OFF',
       extractProgress: 0,
       extractZoneName: null,
       extracted: false,
       isAlive: true,
-      activeWeaponType: 'melee',
+      activeWeaponType: 'none',
       painkillerTimer: 0,
       health: {
         head: 35, thorax: 85, stomach: 70, leftArm: 60, rightArm: 60, leftLeg: 65, rightLeg: 65
@@ -87,9 +87,12 @@ class GameClient {
     // Reusable buffers to eliminate GC allocations in 60 FPS loop
     this._squadListBuffer = [];
     this._scavListBuffer = [];
+    this.botAudioRange = 700;
+    this.lastHitConfirmTime = 0;
 
     this.bullets = [];
     this.grenades = [];
+    this.grenadeThrowCooldownUntil = 0;
     this.currentSpread = 0.012;
     this.spreadBloom = 0;
     this.lastFootstepTime = 0;
@@ -114,14 +117,23 @@ class GameClient {
 
     this.dom = {
       initModal: document.getElementById('init-operator-modal'),
-      inputInitCallsign: document.getElementById('input-init-callsign'),
-      selectInitFaction: document.getElementById('select-init-faction'),
-      btnInitConfirm: document.getElementById('btn-init-confirm'),
+      authLoginForm: document.getElementById('auth-login-form'),
+      authRegisterForm: document.getElementById('auth-register-form'),
+      authLoginTab: document.getElementById('auth-login-tab'),
+      authRegisterTab: document.getElementById('auth-register-tab'),
+      authNotice: document.getElementById('auth-notice'),
+      inputLoginUsername: document.getElementById('input-login-username'),
+      inputLoginPassword: document.getElementById('input-login-password'),
+      inputRegisterUsername: document.getElementById('input-register-username'),
+      inputRegisterPassword: document.getElementById('input-register-password'),
+      inputRegisterCallsign: document.getElementById('input-register-callsign'),
+      selectRegisterFaction: document.getElementById('select-register-faction'),
       hideoutScreen: document.getElementById('hideout-screen'),
       hudOverlay: document.getElementById('hud-overlay'),
       operatorTag: document.getElementById('hideout-operator-tag'),
       factionBadge: document.getElementById('hideout-faction-badge'),
       roublesDisplay: document.getElementById('hideout-roubles-val'),
+      accountSyncStatus: document.getElementById('account-sync-status'),
       statsSurv: document.getElementById('hideout-stats-surv'),
       statsRaids: document.getElementById('hideout-stats-raids'),
       statsKd: document.getElementById('hideout-stats-kd'),
@@ -139,7 +151,8 @@ class GameClient {
       mapCards: {
         factory: document.getElementById('card-map-factory'),
         warehouse: document.getElementById('card-map-warehouse'),
-        bunker: document.getElementById('card-map-bunker')
+        bunker: document.getElementById('card-map-bunker'),
+        streets: document.getElementById('card-map-streets')
       },
       raidTimer: document.getElementById('hud-raid-timer'),
       roomCodeBadge: document.getElementById('hud-room-code'),
@@ -181,6 +194,13 @@ class GameClient {
       btnReturnHideoutDirect: document.getElementById('btn-return-hideout-direct')
     };
 
+    profileManager.onSyncState = (status, error) => {
+      this.dom.accountSyncStatus.textContent = status;
+      this.dom.accountSyncStatus.title = error;
+      this.dom.accountSyncStatus.classList.toggle('syncing', status === 'SYNCING PROFILE...');
+      this.dom.accountSyncStatus.classList.toggle('error', status === 'PROFILE SYNC FAILED');
+    };
+
     this._initAccountSession();
     this._setupUIEvents();
     this._setupNetworkEvents();
@@ -189,30 +209,42 @@ class GameClient {
   /**
    * STEP 1-3: ACCOUNT INITIALIZATION & AUTO-LOGIN FLOW
    */
-  _initAccountSession() {
+  async _initAccountSession() {
     try {
-      if (profileManager.hasProfile()) {
-        this.profile = profileManager.loadProfile();
-        if (this.profile) {
-          this._openHideoutHub();
-        } else {
-          // loadProfile returned null (corrupt profile was wiped) — show init screen
-          this.dom.initModal.style.display = 'flex';
-          this.dom.hideoutScreen.style.display = 'none';
-        }
-      } else {
-        // First time launch: Prompt Operator Initialization
-        this.dom.initModal.style.display = 'flex';
-        this.dom.hideoutScreen.style.display = 'none';
+      const authenticated = await profileManager.restoreAccountSession();
+      if (authenticated) {
+        this.profile = profileManager.profile;
+        this._openHideoutHub();
+        return;
       }
-    } catch (err) {
-      // Any unexpected error during profile load must NOT prevent UI event binding.
-      console.error('[EFT] Profile init error — resetting to fresh operator screen:', err);
-      try { profileManager.logout(); } catch (_) { /* ignore */ }
       this.profile = null;
-      this.dom.initModal.style.display = 'flex';
-      this.dom.hideoutScreen.style.display = 'none';
+      this._showAuthScreen();
+    } catch (err) {
+      console.error('[EFT] Account session restore failed:', err);
+      this._showAuthScreen(err.message);
     }
+  }
+
+  _showAuthScreen(message = '') {
+    this.dom.initModal.style.display = 'flex';
+    this.dom.hideoutScreen.style.display = 'none';
+    this._setAuthMode('login');
+    this._showAuthNotice(message);
+  }
+
+  _setAuthMode(mode) {
+    const isRegister = mode === 'register';
+    this.dom.authLoginForm.hidden = isRegister;
+    this.dom.authRegisterForm.hidden = !isRegister;
+    this.dom.authLoginTab.classList.toggle('active', !isRegister);
+    this.dom.authRegisterTab.classList.toggle('active', isRegister);
+    this.dom.authNotice.textContent = '';
+    this.dom.authNotice.classList.remove('error');
+  }
+
+  _showAuthNotice(message, isError = true) {
+    this.dom.authNotice.textContent = message;
+    this.dom.authNotice.classList.toggle('error', isError && !!message);
   }
 
   _openHideoutHub() {
@@ -271,7 +303,7 @@ class GameClient {
         ammoMax: maxAmmo
       };
       if (this.dom.lobbyPrimaryName) this.dom.lobbyPrimaryName.textContent = primCfg.name;
-      if (this.dom.slot1Name) this.dom.slot1Name.textContent = primCfg.name.split(' ')[0] || primCfg.name;
+      if (this.dom.slot1Name) this.dom.slot1Name.textContent = primKey.toUpperCase();
     } else {
       this.weapons[1] = null;
       if (this.dom.lobbyPrimaryName) this.dom.lobbyPrimaryName.textContent = 'EMPTY (UNARMED)';
@@ -293,7 +325,7 @@ class GameClient {
         ammoMax: maxAmmo
       };
       if (this.dom.lobbySecondaryName) this.dom.lobbySecondaryName.textContent = secCfg.name;
-      if (this.dom.slot2Name) this.dom.slot2Name.textContent = secCfg.name.split(' ')[0] || secCfg.name;
+      if (this.dom.slot2Name) this.dom.slot2Name.textContent = secKey.toUpperCase();
     } else {
       this.weapons[2] = null;
       if (this.dom.lobbySecondaryName) this.dom.lobbySecondaryName.textContent = 'EMPTY (NONE)';
@@ -322,17 +354,6 @@ class GameClient {
     const slot6El = document.getElementById('slot-6-cnt');
     if (slot6El) slot6El.textContent = `x${this.medInventory.painkiller}`;
 
-    // Select active slot
-    if (this.weapons[this.activeWeaponSlot]) {
-      // Keep current equipped slot
-    } else if (this.weapons[1]) {
-      this.activeWeaponSlot = 1;
-    } else if (this.weapons[2]) {
-      this.activeWeaponSlot = 2;
-    } else {
-      this.activeWeaponSlot = 1;
-    }
-
     const active = this.getActiveWeapon();
     this.localPlayer.activeWeaponType = active.type;
     this.input.cyclicRateMs = active.config.cyclicRateMs;
@@ -342,14 +363,21 @@ class GameClient {
   getActiveWeapon() {
     const wep = this.weapons[this.activeWeaponSlot];
     if (wep) return wep;
-    const altSlot = (this.activeWeaponSlot === 1) ? 2 : 1;
-    if (this.weapons[altSlot]) return this.weapons[altSlot];
     return {
-      type: 'melee',
+      type: 'none',
       config: WEAPON_REGISTRY.melee,
       ammoCur: 0,
       ammoMax: 0
     };
+  }
+
+  _syncActiveWeaponAmmoToInventory() {
+    const weapon = this.getActiveWeapon();
+    const gridId = this.activeWeaponSlot === 1 ? 'primaryWeapon' : 'secondaryWeapon';
+    const item = this.inventory.items.find(it => it.gridId === gridId && getWeaponConfig(it) === weapon.config);
+    if (!item) return;
+    item.ammoCur = weapon.ammoCur;
+    item.ammoMax = weapon.ammoMax;
   }
 
   _switchWeaponSlot(slot) {
@@ -376,13 +404,14 @@ class GameClient {
   _updateWeaponHUD() {
     const wep = this.getActiveWeapon();
     if (!wep) return;
-    if (this.dom.hudWepName) this.dom.hudWepName.textContent = wep.config.name.toUpperCase();
-    if (this.dom.hudAmmoCur) this.dom.hudAmmoCur.textContent = (wep.type === 'melee') ? '-' : wep.ammoCur;
-    if (this.dom.hudAmmoMax) this.dom.hudAmmoMax.textContent = (wep.type === 'melee') ? '-' : wep.ammoMax;
-    if (this.dom.hudAmmoType) this.dom.hudAmmoType.textContent = (wep.type === 'melee') ? 'MELEE' : wep.config.ammoType;
+    this.input.hasWeapon = wep.type !== 'none';
+    if (this.dom.hudWepName) this.dom.hudWepName.textContent = wep.type === 'none' ? 'UNARMED' : wep.type.toUpperCase();
+    if (this.dom.hudAmmoCur) this.dom.hudAmmoCur.textContent = (wep.type === 'melee' || wep.type === 'none') ? '-' : wep.ammoCur;
+    if (this.dom.hudAmmoMax) this.dom.hudAmmoMax.textContent = (wep.type === 'melee' || wep.type === 'none') ? '-' : wep.ammoMax;
+    if (this.dom.hudAmmoType) this.dom.hudAmmoType.textContent = wep.type === 'none' ? 'NO WEAPON' : (wep.type === 'melee' ? 'MELEE' : wep.config.ammoType);
     if (this.dom.badgeFiremode) {
-      if (wep.type === 'melee') {
-        this.dom.badgeFiremode.textContent = '[MELEE]';
+      if (wep.type === 'melee' || wep.type === 'none') {
+        this.dom.badgeFiremode.textContent = wep.type === 'none' ? '[UNARMED]' : '[MELEE]';
         this.dom.badgeFiremode.classList.remove('highlight');
       } else {
         this.dom.badgeFiremode.textContent = (this.input.fireMode === 'SEMI') ? '[SEMI] (B)' : '[AUTO] (B)';
@@ -408,6 +437,33 @@ class GameClient {
     this._alertTimeout = setTimeout(() => {
       el.style.display = 'none';
     }, 2800);
+  }
+
+  _throwGrenade() {
+    if (!this.isInRaid || !this.localPlayer.isAlive || !this.network.isConnected ||
+        this.inventory.overlay.classList.contains('active') ||
+        performance.now() < this.grenadeThrowCooldownUntil) return;
+
+    const carriedGrids = new Set(['rig', 'pockets', 'backpack', 'alpha']);
+    const grenadeIndex = this.inventory.items.findIndex(item =>
+      item.type === 'grenade' && item.grenadeType && carriedGrids.has(item.gridId)
+    );
+    if (grenadeIndex === -1) {
+      audioEngine.playEmptyClick();
+      this._showTacticalAlert('NO GRENADE CARRIED');
+      return;
+    }
+
+    const grenade = this.inventory.items[grenadeIndex];
+    this.network.send('throwGrenade', {
+      grenadeKey: grenade.itemKey || grenade.weaponType || grenade.id,
+      angle: this.localPlayer.angle
+    });
+    this.grenadeThrowCooldownUntil = performance.now() + 1000;
+    this.inventory.items.splice(grenadeIndex, 1);
+    this.inventory._renderItemsOnly();
+    this._initWeaponsFromProfile();
+    this._showTacticalAlert(`GRENADE THROWN: ${grenade.name.toUpperCase()}`);
   }
 
   _useMedicalItem(type) {
@@ -538,19 +594,48 @@ class GameClient {
   }
 
   _setupUIEvents() {
-    // Confirm Operator Initialization
-    this.dom.btnInitConfirm?.addEventListener('click', () => {
-      audioEngine.ensureContext();
-      const callsign = this.dom.inputInitCallsign.value.trim() || 'USEC_Operator';
-      const faction = this.dom.selectInitFaction.value || 'USEC';
-      this.profile = profileManager.initProfile(callsign, faction);
-      this._openHideoutHub();
+    this.dom.authLoginTab?.addEventListener('click', () => this._setAuthMode('login'));
+    this.dom.authRegisterTab?.addEventListener('click', () => this._setAuthMode('register'));
+
+    this.dom.authLoginForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submit = this.dom.authLoginForm.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      this._showAuthNotice('CONTACTING BATTLESTATE SERVER...', false);
+      try {
+        audioEngine.ensureContext();
+        this.profile = await profileManager.loginAccount(
+          this.dom.inputLoginUsername.value.trim(),
+          this.dom.inputLoginPassword.value
+        );
+        this.dom.inputLoginPassword.value = '';
+        this._openHideoutHub();
+      } catch (error) {
+        this._showAuthNotice(error.message);
+      } finally {
+        submit.disabled = false;
+      }
     });
 
-    this.dom.inputInitCallsign?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        this.dom.btnInitConfirm?.click();
+    this.dom.authRegisterForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submit = this.dom.authRegisterForm.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      this._showAuthNotice('CREATING PMC ACCOUNT...', false);
+      try {
+        audioEngine.ensureContext();
+        this.profile = await profileManager.registerAccount(
+          this.dom.inputRegisterUsername.value.trim(),
+          this.dom.inputRegisterPassword.value,
+          this.dom.inputRegisterCallsign.value.trim(),
+          this.dom.selectRegisterFaction.value
+        );
+        this.dom.inputRegisterPassword.value = '';
+        this._openHideoutHub();
+      } catch (error) {
+        this._showAuthNotice(error.message);
+      } finally {
+        submit.disabled = false;
       }
     });
 
@@ -562,11 +647,18 @@ class GameClient {
     });
 
     // Switch Account / Logout
-    this.dom.btnSwitchAccount?.addEventListener('click', () => {
+    this.dom.btnSwitchAccount?.addEventListener('click', async () => {
       audioEngine.ensureContext();
-      profileManager.logout();
-      this.dom.hideoutScreen.style.display = 'none';
-      this.dom.initModal.style.display = 'flex';
+      this.dom.btnSwitchAccount.disabled = true;
+      try {
+        await profileManager.logout();
+        this.profile = null;
+        this._showAuthScreen();
+      } catch (error) {
+        this._showAuthScreen(error.message);
+      } finally {
+        this.dom.btnSwitchAccount.disabled = false;
+      }
     });
 
     // Open Stash & Character Management (Out of raid)
@@ -633,6 +725,7 @@ class GameClient {
           this.inventory.close();
         } else {
           this.inventory.openContainerSearch(this.nearbyContainer);
+          this.network.send('lootNoise', { containerId: this.nearbyContainer.id });
         }
       }
     };
@@ -682,6 +775,9 @@ class GameClient {
 
     this.input.onUseMed = (type) => {
       this._useMedicalItem(type);
+    };
+    this.input.onThrowGrenade = () => {
+      this._throwGrenade();
     };
 
     this.input.onToggleBinds = () => {
@@ -798,6 +894,16 @@ class GameClient {
     this.inventory.onContainerTransfer = (containerId, itemId, action, targetItem) => {
       this.network.send('transferContainerItem', { containerId, itemId, action, targetItem });
     };
+    this.inventory.onDropItem = (item, sourceContainerId) => {
+      if (!this.isInRaid || !this.network.isConnected) return false;
+      this.network.send('dropItem', {
+        itemId: item.id,
+        itemKey: item.weaponType || item.itemKey || item.id,
+        sourceContainerId,
+        itemState: item
+      });
+      return true;
+    };
 
     // Death modal acknowledgement
     this.dom.btnDeathOk?.addEventListener('click', () => {
@@ -912,20 +1018,24 @@ class GameClient {
       this.animFrameId = requestAnimationFrame((t) => this.loop(t));
     };
 
-    // Teammate Container Loot updates
-    this.network.socket?.addEventListener('message', (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'containerUpdated' && msg.data) {
-          const idx = this.containers.findIndex(c => c.id === msg.data.id);
-          if (idx !== -1) this.containers[idx] = msg.data;
-          if (this.inventory.activeContainer?.id === msg.data.id) {
-            this.inventory.activeContainer = msg.data;
-            this.inventory._renderItemsOnly();
-          }
-        }
-      } catch (e) {}
-    });
+    this.network.onContainerUpdated = (container) => {
+      if (!container) return;
+      const idx = this.containers.findIndex(c => c.id === container.id);
+      if (idx !== -1) this.containers[idx] = container;
+      if (this.inventory.activeContainer?.id === container.id) {
+        this.inventory.activeContainer = container;
+        this.inventory._renderItemsOnly();
+      }
+    };
+
+    this.network.onContainerRemoved = (data) => {
+      if (!data?.id) return;
+      this.containers = this.containers.filter(c => c.id !== data.id);
+      if (this.inventory.activeContainer?.id === data.id) {
+        this.inventory.activeContainer.items = [];
+        this.inventory._renderItemsOnly();
+      }
+    };
 
     this.network.onSnapshot = (snapshot) => {
       this._handleServerSnapshot(snapshot);
@@ -1045,7 +1155,7 @@ class GameClient {
             x: p.x, y: p.y, angle: p.angle, radius: PHYSICS_CONFIG.PLAYER_RADIUS,
             isAiming: p.isAiming, isCrouching: p.isCrouching, isSprinting: p.isSprinting,
             isFiring: p.isFiring, tacticalDevice: 'LASER', extractProgress: p.extractProgress,
-            activeWeaponType: p.activeWeaponType || 'm4a1',
+            activeWeaponType: p.activeWeaponType || 'none',
             buffer: []
           };
           this.remotePlayers.set(p.id, remote);
@@ -1058,7 +1168,7 @@ class GameClient {
         remote.isCrouching = p.isCrouching;
         remote.isSprinting = p.isSprinting;
         remote.isFiring = p.isFiring;
-        remote.activeWeaponType = p.activeWeaponType || 'm4a1';
+        remote.activeWeaponType = p.activeWeaponType || 'none';
         remote.extractProgress = p.extractProgress;
 
         remote.buffer.push({ time: now, x: p.x, y: p.y, angle: p.angle });
@@ -1072,27 +1182,68 @@ class GameClient {
 
     // 2. Synchronize Living PVE Scav Bots & Corpse Containers
     if (snapshot.bots) {
+      const activeBotIds = new Set();
       for (const b of snapshot.bots) {
+        activeBotIds.add(b.id);
         let bot = this.scavBots.get(b.id);
         if (!bot) {
-          bot = { ...b };
+          bot = { ...b, lastStepAt: now, lastX: b.x, lastY: b.y };
           this.scavBots.set(b.id, bot);
         } else {
+          const distanceToPlayer = Math.hypot(b.x - this.localPlayer.x, b.y - this.localPlayer.y);
+
           // Play voiceline bark if state transitioned to ALERT
           if (b.state === 'ALERT' && bot.state !== 'ALERT') {
             audioEngine.playScavBark();
           }
+
+          if (b.isFiring && !bot.isFiring && distanceToPlayer < this.botAudioRange) {
+            const weaponDef = WEAPON_REGISTRY[b.weaponType];
+            const soundType = weaponDef?.soundType || 'ak74m';
+            const volume = Math.max(0.06, 1 - distanceToPlayer / this.botAudioRange);
+            audioEngine.playGunshot(soundType, false, volume);
+          }
+
+          const movedDistance = Math.hypot(b.x - bot.lastX, b.y - bot.lastY);
+          if (movedDistance > 1.5 && now - bot.lastStepAt > 320 && distanceToPlayer < 360) {
+            const volume = Math.max(0.08, 1 - distanceToPlayer / 420);
+            audioEngine.playFootstep(b.isSprinting ? 'SPRINT' : 'STAND', volume);
+            bot.lastStepAt = now;
+          }
+
           bot.x = b.x;
           bot.y = b.y;
+          bot.lastX = b.x;
+          bot.lastY = b.y;
           bot.hp = b.hp;
+          bot.healthPct = b.healthPct;
           bot.angle = b.angle;
           bot.state = b.state;
           bot.isFiring = b.isFiring;
+          bot.isSprinting = b.isSprinting;
+          bot.weaponType = b.weaponType;
           bot.isBoss = b.isBoss;
           bot.bossType = b.bossType;
           bot.isGuard = b.isGuard;
           bot.speechText = b.speechText;
           bot.speechTimer = b.speechTimer;
+        }
+      }
+      for (const id of this.scavBots.keys()) {
+        if (!activeBotIds.has(id)) this.scavBots.delete(id);
+      }
+    }
+
+    for (const hit of snapshot.botHits || []) {
+      this.renderer.emitBloodParticles(hit.x, hit.y);
+      const hitTime = performance.now();
+      const hitBot = this.scavBots.get(hit.id);
+      if (hitBot) hitBot.hitFlashUntil = hitTime + 130;
+      if (hit.shooterId === this.localPlayer.id) {
+        this.renderer.triggerHitMarker(Boolean(hit.killed), hit.x, hit.y);
+        if (hitTime - this.lastHitConfirmTime >= 100) {
+          audioEngine.playHitConfirm(Boolean(hit.killed));
+          this.lastHitConfirmTime = hitTime;
         }
       }
     }
@@ -1355,8 +1506,11 @@ class GameClient {
 
     const activeWep = this.getActiveWeapon();
     const shouldFire = this.input.shouldFireWeapon(currentTime, isInvOpen);
+    let shotAngle = null;
 
-    if (shouldFire) {
+    if (activeWep.type === 'none') {
+      this.localPlayer.isFiring = false;
+    } else if (shouldFire) {
       if (activeWep.type === 'melee') {
         this.localPlayer.isFiring = true;
         audioEngine.playMeleeSwing();
@@ -1370,23 +1524,27 @@ class GameClient {
       } else {
         this.localPlayer.isFiring = true;
         activeWep.ammoCur--;
+        this._syncActiveWeaponAmmoToInventory();
         this._updateWeaponHUD();
 
         const isAuto = (this.input.fireMode === 'AUTO');
         audioEngine.playGunshot(activeWep.config.soundType, isAuto);
         this.renderer.addRecoilShake(activeWep.config.recoil);
 
-        this.spreadBloom = Math.min(0.14, this.spreadBloom + activeWep.config.bloom);
-
-        const spreadAngle = (Math.random() * 2 - 1) * (activeWep.config.spread + this.spreadBloom);
-        const bulletAngle = this.localPlayer.angle + spreadAngle;
+        const movementSpeed = Math.hypot(this.localPlayer.vx || 0, this.localPlayer.vy || 0);
+        const stanceSpread = this.localPlayer.isCrouching ? 0.012 : 0.035;
+        const movementSpread = Math.min(0.075, movementSpeed / 280 * (this.localPlayer.isSprinting ? 0.10 : 0.07));
+        const aimMultiplier = inputState.isAiming ? 0.55 : 1;
+        this.spreadBloom = Math.min(0.18, this.spreadBloom + activeWep.config.bloom);
+        const shotSpread = (activeWep.config.spread + stanceSpread + movementSpread + this.spreadBloom) * aimMultiplier;
+        shotAngle = this.localPlayer.angle + (Math.random() * 2 - 1) * shotSpread;
         const bulletSpeed = activeWep.config.bulletSpeed;
 
         this.bullets.push({
           x: this.localPlayer.x + Math.cos(this.localPlayer.angle) * 36,
           y: this.localPlayer.y + Math.sin(this.localPlayer.angle) * 36,
-          vx: Math.cos(bulletAngle) * bulletSpeed,
-          vy: Math.sin(bulletAngle) * bulletSpeed,
+          vx: Math.cos(shotAngle) * bulletSpeed,
+          vy: Math.sin(shotAngle) * bulletSpeed,
           distTraveled: 0,
           maxDist: 520,
           weaponType: activeWep.type
@@ -1402,7 +1560,8 @@ class GameClient {
       this.localPlayer.isFiring = false;
     }
 
-    this.spreadBloom = Math.max(0, this.spreadBloom - 0.25 * dt);
+    const isMovingForAccuracy = Math.hypot(this.localPlayer.vx || 0, this.localPlayer.vy || 0) > 12;
+    this.spreadBloom = Math.max(0, this.spreadBloom - (isMovingForAccuracy ? 0.10 : (inputState.isAiming ? 0.32 : 0.22)) * dt);
 
     // 2. BULLET INTEGRATION (ANTI-WALL TUNNELING WITH 8PX SUB-STEPPING)
     for (let i = this.bullets.length - 1; i >= 0; i--) {
@@ -1448,6 +1607,7 @@ class GameClient {
       isCrouching: inputState.isCrouching,
       isAiming: inputState.isAiming,
       isFiring: this.localPlayer.isFiring,
+      shotAngle,
       activeWeaponType: activeWep.type,
       fireMode: inputState.fireMode,
       tacticalDevice: inputState.tacticalDevice
@@ -1476,11 +1636,12 @@ class GameClient {
 
     // 5. PROXIMITY CHECK (Containers & Dead Scav Corpses)
     this.nearbyContainer = null;
+    let nearestContainerDistance = Infinity;
     for (const c of this.containers) {
       const dist = Math.hypot(this.localPlayer.x - c.x, this.localPlayer.y - c.y);
-      if (dist < 56) {
+      if (dist < 56 && dist < nearestContainerDistance) {
         this.nearbyContainer = c;
-        break;
+        nearestContainerDistance = dist;
       }
     }
 
@@ -1558,7 +1719,9 @@ class GameClient {
     this.dom.badgeStand.classList.toggle('active', !this.localPlayer.isSprinting && !this.localPlayer.isCrouching);
 
     this.dom.badgeFiremode.textContent = (this.input.fireMode === 'SEMI') ? '[SEMI] (B)' : '[FULL-AUTO] (B)';
-    this.dom.badgeTactical.textContent = `${this.localPlayer.tacticalDevice} (T)`;
+    this.dom.badgeTactical.textContent = this.getActiveWeapon().type === 'none'
+      ? 'NO DEVICE'
+      : `${this.localPlayer.tacticalDevice} (T)`;
     this._updateWeaponHUD();
 
     if (this.localPlayer.extractProgress > 0) {

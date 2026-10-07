@@ -6,7 +6,34 @@
 
 import { profileManager } from './profile.js';
 import { audioEngine } from './audio.js';
-import { getRarityColor, WEAPON_REGISTRY } from '/shared/weapons.js';
+import { getRarityColor, ITEM_CATALOG, WEAPON_REGISTRY } from '/shared/weapons.js';
+
+const BARTER_DEALS = [
+  {
+    id: 'prapor-frag',
+    traderId: 'prapor',
+    name: 'Field Fragmentation Grenade',
+    description: 'Trade recovered valuables for a rare RGD-5 grenade.',
+    requirements: [{ itemKey: 'chainlet', count: 2 }],
+    rewardKey: 'grenade_rgd5'
+  },
+  {
+    id: 'therapist-trauma',
+    traderId: 'therapist',
+    name: 'Heavy Trauma Treatment',
+    description: 'Exchange a flash drive and workshop supplies for a Grizzly trauma kit.',
+    requirements: [{ itemKey: 'flashdrive', count: 1 }, { itemKey: 'duct_tape', count: 1 }],
+    rewardKey: 'grizzly'
+  },
+  {
+    id: 'peacekeeper-ammo',
+    traderId: 'peacekeeper',
+    name: 'Battle Rifle Ammunition',
+    description: 'Trade military power and intelligence for M80 battle rifle rounds.',
+    requirements: [{ itemKey: 'military_battery', count: 1 }, { itemKey: 'flashdrive', count: 1 }],
+    rewardKey: 'ammo_m80'
+  }
+];
 
 export const TRADERS = {
   prapor: {
@@ -431,6 +458,52 @@ export class TraderMarketEngine {
     audioEngine.playFireSelector();
   }
 
+  _getBarterItemKey(item) {
+    if (item?.itemKey && ITEM_CATALOG[item.itemKey]) return item.itemKey;
+    if (item?.weaponType && ITEM_CATALOG[item.weaponType]) return item.weaponType;
+    return ITEM_CATALOG[item?.id] ? item.id : null;
+  }
+
+  completeBarterDeal(dealId) {
+    const deal = BARTER_DEALS.find(entry => entry.id === dealId && entry.traderId === this.activeTraderId);
+    const profile = profileManager.profile;
+    if (!deal || !profile) return false;
+
+    const stash = profile.stashItems || [];
+    const consumedIndices = [];
+    for (const requirement of deal.requirements) {
+      const matchingIndices = [];
+      for (let index = stash.length - 1; index >= 0; index--) {
+        if (this._getBarterItemKey(stash[index]) === requirement.itemKey) matchingIndices.push(index);
+      }
+      if (matchingIndices.length < requirement.count) {
+        audioEngine.playEmptyClick();
+        return false;
+      }
+      consumedIndices.push(...matchingIndices.slice(0, requirement.count));
+    }
+
+    const reward = ITEM_CATALOG[deal.rewardKey];
+    if (!reward) return false;
+    const consumed = new Set(consumedIndices);
+    profile.stashItems = stash.filter((_, index) => !consumed.has(index));
+    const remainingStash = profile.stashItems;
+    const maxGy = remainingStash.reduce((max, item) => Math.max(max, (item.gy || 0) + (item.h || 1)), 0);
+    profile.stashItems.push({
+      ...reward,
+      id: `${deal.rewardKey}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      itemKey: deal.rewardKey,
+      gridId: 'stash',
+      gx: 0,
+      gy: Math.min(28, maxGy)
+    });
+    profileManager.saveProfile();
+    audioEngine.playCashRegister();
+    this._render();
+    if (this.onProfileUpdated) this.onProfileUpdated();
+    return true;
+  }
+
   _calculateSellPrice(item) {
     if (!item) return 0;
     const name = (item.name || '').toLowerCase();
@@ -586,6 +659,9 @@ export class TraderMarketEngine {
           <div class="trader-mode-btn ${this.activeTab === 'SELL' ? 'active' : ''}" id="mode-tab-sell">
             💰 SELL STASH INVENTORY TO ${curTrader.name}
           </div>
+          <div class="trader-mode-btn ${this.activeTab === 'BARTER' ? 'active' : ''}" id="mode-tab-barter">
+            🔁 BARTER FOUND GOODS
+          </div>
         </div>
 
         <div class="trader-desc-banner">
@@ -599,7 +675,7 @@ export class TraderMarketEngine {
               ⚠️ <strong>NORVINSK SUPPLY EMBARGO:</strong> Depot stockpiles are nearly exhausted and traders are almost empty! High-tier firearms, armor, and combat gear are out of stock. You must enter raids to loot and extract military equipment!
             </div>
             ${this._renderBuyGrid(curTrader)}
-          ` : this._renderSellGrid(prof)}
+          ` : this.activeTab === 'SELL' ? this._renderSellGrid(prof) : this._renderBarterGrid(prof)}
         </div>
       </div>
     `;
@@ -613,6 +689,7 @@ export class TraderMarketEngine {
 
     document.getElementById('mode-tab-buy')?.addEventListener('click', () => this.setTab('BUY'));
     document.getElementById('mode-tab-sell')?.addEventListener('click', () => this.setTab('SELL'));
+    document.getElementById('mode-tab-barter')?.addEventListener('click', () => this.setTab('BARTER'));
     document.getElementById('btn-close-traders')?.addEventListener('click', () => this.close());
 
     // Bind action buttons
@@ -631,6 +708,50 @@ export class TraderMarketEngine {
         if (stashItem) this.sellItem(stashItem);
       });
     });
+    this.modal.querySelectorAll('.btn-barter-deal:not([disabled])').forEach(btn => {
+      btn.addEventListener('click', () => this.completeBarterDeal(btn.dataset.deal));
+    });
+  }
+
+  _renderBarterGrid(profile) {
+    const deals = BARTER_DEALS.filter(deal => deal.traderId === this.activeTraderId);
+    const stash = profile.stashItems || [];
+    const countItem = (itemKey) => stash.filter(item => this._getBarterItemKey(item) === itemKey).length;
+    if (!deals.length) {
+      return '<div class="trader-empty-state">THIS TRADER HAS NO BARTER CONTRACTS.</div>';
+    }
+
+    return `
+      <div class="trader-items-grid">
+        ${deals.map(deal => {
+          const reward = ITEM_CATALOG[deal.rewardKey];
+          if (!reward) return '';
+          const canTrade = deal.requirements.every(requirement => countItem(requirement.itemKey) >= requirement.count);
+          const requirements = deal.requirements.map(requirement => {
+            const item = ITEM_CATALOG[requirement.itemKey];
+            const owned = countItem(requirement.itemKey);
+            return `${requirement.count}x ${item?.name || requirement.itemKey} (${owned} owned)`;
+          }).join(' + ');
+          const rarity = reward.rarity || 'common';
+          const rarityColor = getRarityColor(rarity);
+          return `
+            <div class="trader-item-card rarity-${rarity}" style="border-left: 3px solid ${rarityColor};">
+              <div class="trader-item-top">
+                <span class="item-tag" style="background: ${reward.color || rarityColor};">BARTER CONTRACT</span>
+                <span class="item-price-tag">${reward.w}x${reward.h}</span>
+              </div>
+              <div class="trader-item-name">${deal.name}</div>
+              <div class="trader-item-sub">${deal.description}</div>
+              <div class="trader-item-sub">GIVE: ${requirements}</div>
+              <div class="trader-item-sub">RECEIVE: ${reward.name}</div>
+              <button class="btn-barter-deal" data-deal="${deal.id}" ${canTrade ? '' : 'disabled'}>
+                ${canTrade ? 'COMPLETE BARTER' : 'MISSING REQUIRED ITEMS'}
+              </button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
   }
 
   _renderBuyGrid(trader) {

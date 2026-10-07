@@ -1,10 +1,10 @@
 /**
  * EFT Tactical 2D - Server Authoritative Game Engine & Room Manager
  * Features:
- * - Authoritative 20Hz Simulation
+ * - Authoritative 30Hz Simulation
  * - Server-Authoritative PVE Scav Bot Engine (Patrol, LOS Detection, 0.8s Reaction, Combat Firing, Death -> Lootable Corpse)
  * - Real-time Player Damage & Projectile Collision
- * - Multi-Map Room Management (Factory 60x60, Customs 100x100, Bunker 80x80)
+ * - Multi-Map Room Management (Factory 80x80, Customs 120x120, Bunker 100x100)
  */
 
 import { TacticalMap, MAP_CONFIGS } from '../shared/map.js';
@@ -24,12 +24,7 @@ const SCAV_NAMES = [
   'Yura Topor', 'Kostya Shilo', 'Tolik Karas', 'Vanya Gvozd'
 ];
 
-const SCAV_WEAPONS = [
-  { id: 'ak74m', name: 'AK-74M 5.45x39', type: 'weapon', w: 5, h: 2, color: '#e67e22', tag: 'PRIMARY', sub: '5.45x39 PS' },
-  { id: 'saiga12', name: 'Saiga-12K 12ga', type: 'weapon', w: 5, h: 2, color: '#c0392b', tag: 'SHOTGUN', sub: '12/70 Buckshot' },
-  { id: 'mp5', name: 'HK MP5 9x19', type: 'weapon', w: 4, h: 2, color: '#3498db', tag: 'PRIMARY', sub: '9x19mm PM' },
-  { id: 'mosin', name: 'Mosin Nagant 7.62x54R', type: 'weapon', w: 6, h: 1, color: '#8e44ad', tag: 'SNIPER', sub: '7.62x54R Bolt' }
-];
+const SCAV_WEAPONS = ['ak74m', 'saiga12', 'mp5', 'glock17', 'akm', 'ump45'].map(id => WEAPON_REGISTRY[id]);
 
 export class GameRoom {
   constructor(roomCode, hostSocketId) {
@@ -40,6 +35,7 @@ export class GameRoom {
     this.map = new TacticalMap(this.mapId);
     this.players = new Map();
     this.bots = []; // Living Scav AI Bots & Bosses
+    this.botHitEvents = [];
     this.projectiles = []; // Server-authoritative Scav & player projectiles
     this.grenades = []; // Active simulated flash & HE grenades
     this.containers = new Map();
@@ -49,6 +45,7 @@ export class GameRoom {
     this.intervalId = null;
     this.onSnapshotCallback = null;
     this.onBroadcastCallback = null;
+    this.playersLootNoise = new Map();
 
     this._seedContainerLoot();
   }
@@ -58,8 +55,9 @@ export class GameRoom {
 
     const helperPlaceItem = (items, itemDef, gridW, gridH) => {
       if (!itemDef) return false;
-      const w = Math.min(gridW, itemDef.w || 1);
-      const h = Math.min(gridH, itemDef.h || 1);
+      const w = itemDef.w || 1;
+      const h = itemDef.h || 1;
+      if (w > gridW || h > gridH) return false;
 
       for (let r = 0; r <= gridH - h; r++) {
         for (let c = 0; c <= gridW - w; c++) {
@@ -74,17 +72,17 @@ export class GameRoom {
           }
           if (!overlap) {
             const clone = {
+              ...itemDef,
               id: `loot_${Math.random().toString(36).substring(2, 9)}`,
-              name: itemDef.name,
-              type: itemDef.type,
+              itemKey: itemDef.id,
               w: w, h: h,
               gx: c, gy: r,
               color: itemDef.color || '#2ecc71',
               tag: itemDef.tag || 'ITEM',
               sub: itemDef.sub || '',
-              rarity: itemDef.rarity || 'common',
-              weaponType: itemDef.id
+              rarity: itemDef.rarity || 'common'
             };
+            if (WEAPON_REGISTRY[itemDef.id]) clone.weaponType = itemDef.id;
             items.push(clone);
             return true;
           }
@@ -93,10 +91,27 @@ export class GameRoom {
       return false;
     };
 
-    const weaponKeys = ['asval', 'vss', 'vector', 'mpx', 'saiga12', 'm4a1', 'ak74m', 'mp5', 'mosin'];
-    const techKeys = ['bitcoin', 'gpu', 'ledx', 'flashdrive', 'tetriz', 'labs_keycard'];
-    const medKeys = ['golden_star', 'morphine', 'grizzly', 'salewa', 'ai2', 'bandage', 'splint'];
-    const ammoKeys = ['ammo_m855a1', 'ammo_bt', 'ammo_sp6', 'ammo_lps', 'ammo_pst'];
+    const weaponKeys = Object.keys(WEAPON_REGISTRY).filter(key => key !== 'melee');
+    const techKeys = ['bitcoin', 'gpu', 'ledx', 'flashdrive', 'tetriz', 'labs_keycard', 'military_battery', 'intel_folder'];
+    const medKeys = ['golden_star', 'morphine', 'grizzly', 'salewa', 'ai2', 'bandage', 'splint', 'cms_kit', 'surv12_kit'];
+    const ammoKeys = Object.keys(ITEM_CATALOG).filter(key => key.startsWith('ammo_'));
+    const supplyKeys = ['ration_mre', 'water_bottle', 'duct_tape', 'chainlet', 'suppressor_556'];
+    const grenadeKeys = ['grenade_f1', 'grenade_rgd5', 'grenade_m67'];
+    const rarityWeight = { common: 58, tactical: 24, rare: 10, gold: 2, ultra: 0.25 };
+    const chooseItem = (keys) => {
+      const candidates = keys.map(key => WEAPON_REGISTRY[key] || ITEM_CATALOG[key]).filter(Boolean);
+      const totalWeight = candidates.reduce((total, def) => total + (rarityWeight[def.rarity] || 1), 0);
+      let choice = Math.random() * totalWeight;
+      for (const def of candidates) {
+        choice -= rarityWeight[def.rarity] || 1;
+        if (choice <= 0) return def;
+      }
+      return candidates[candidates.length - 1] || null;
+    };
+    const tryPlace = (items, keys, gridW, gridH) => {
+      const def = chooseItem(keys);
+      return def ? helperPlaceItem(items, def, gridW, gridH) : false;
+    };
 
     for (const c of this.map.containers) {
       const items = [];
@@ -104,44 +119,28 @@ export class GameRoom {
       const gridH = c.gridH || 3;
 
       if (c.type === 'crate_military') {
-        const wepKey = weaponKeys[Math.floor(Math.random() * weaponKeys.length)];
-        const wepDef = WEAPON_REGISTRY[wepKey];
-        if (wepDef) helperPlaceItem(items, wepDef, gridW, gridH);
-
-        const ammoKey = ammoKeys[Math.floor(Math.random() * ammoKeys.length)];
-        if (ITEM_CATALOG[ammoKey]) helperPlaceItem(items, ITEM_CATALOG[ammoKey], gridW, gridH);
-
-        if (Math.random() < 0.35 && ITEM_CATALOG.armor_trooper) {
-          helperPlaceItem(items, ITEM_CATALOG.armor_trooper, gridW, gridH);
-        }
+        const roll = Math.random();
+        if (roll < 0.035) tryPlace(items, weaponKeys, gridW, gridH);
+        else if (roll < 0.10) tryPlace(items, grenadeKeys, gridW, gridH);
+        else if (roll < 0.20) tryPlace(items, ['armor_trooper', 'armor_korund', 'armor_maska', 'suppressor_556'], gridW, gridH);
+        else if (roll < 0.43) tryPlace(items, ammoKeys, gridW, gridH);
+        else if (roll < 0.51) tryPlace(items, ['mag_stanag_30', 'mag_ak74_30', 'mag_rpk_95', 'mag_val_20', 'mag_vss_10', 'mag_vector_33', 'mag_mpx_30', 'mag_mp5_30', 'mag_saiga_10', 'mag_glock_17', 'mag_tt_8', 'mag_akm_30', 'mag_scar_20', 'mag_mp7_30', 'mag_p90_50', 'mag_ump_25', 'mag_1911_7'], gridW, gridH);
+        else if (roll < 0.56) tryPlace(items, supplyKeys, gridW, gridH);
       } else if (c.type === 'corpse_scav') {
-        const techKey = techKeys[Math.floor(Math.random() * techKeys.length)];
-        if (ITEM_CATALOG[techKey]) helperPlaceItem(items, ITEM_CATALOG[techKey], gridW, gridH);
-
-        const medKey = medKeys[Math.floor(Math.random() * medKeys.length)];
-        if (ITEM_CATALOG[medKey]) helperPlaceItem(items, ITEM_CATALOG[medKey], gridW, gridH);
-
-        if (Math.random() < 0.40) {
-          helperPlaceItem(items, WEAPON_REGISTRY.glock17, gridW, gridH);
-        }
+        const roll = Math.random();
+        if (roll < 0.025) tryPlace(items, techKeys, gridW, gridH);
+        else if (roll < 0.12) tryPlace(items, ['glock17', 'goldentt', 'm1911'], gridW, gridH);
+        else if (roll < 0.34) tryPlace(items, ammoKeys, gridW, gridH);
+        else if (roll < 0.52) tryPlace(items, medKeys, gridW, gridH);
+        else if (roll < 0.64) tryPlace(items, supplyKeys, gridW, gridH);
       } else if (c.type === 'ammo_box') {
-        const count = 2 + Math.floor(Math.random() * 2);
-        for (let k = 0; k < count; k++) {
-          const aKey = ammoKeys[Math.floor(Math.random() * ammoKeys.length)];
-          if (ITEM_CATALOG[aKey]) helperPlaceItem(items, ITEM_CATALOG[aKey], gridW, gridH);
-        }
+        if (Math.random() < 0.40) tryPlace(items, ammoKeys, gridW, gridH);
+        if (Math.random() < 0.08) tryPlace(items, ammoKeys, gridW, gridH);
       } else if (c.type === 'med_bag') {
-        const count = 2 + Math.floor(Math.random() * 2);
-        for (let k = 0; k < count; k++) {
-          const mKey = medKeys[Math.floor(Math.random() * medKeys.length)];
-          if (ITEM_CATALOG[mKey]) helperPlaceItem(items, ITEM_CATALOG[mKey], gridW, gridH);
-        }
+        if (Math.random() < 0.48) tryPlace(items, medKeys, gridW, gridH);
+        if (Math.random() < 0.06) tryPlace(items, medKeys, gridW, gridH);
       } else {
-        const pool = [...techKeys, ...medKeys, ...ammoKeys];
-        for (let k = 0; k < 2; k++) {
-          const pick = pool[Math.floor(Math.random() * pool.length)];
-          if (ITEM_CATALOG[pick]) helperPlaceItem(items, ITEM_CATALOG[pick], gridW, gridH);
-        }
+        if (Math.random() < 0.32) tryPlace(items, [...techKeys, ...medKeys, ...ammoKeys, ...supplyKeys], gridW, gridH);
       }
 
       this.containers.set(c.id, {
@@ -161,8 +160,8 @@ export class GameRoom {
     const count = this.map.scavCount || 8;
     const zones = this.map.scavSpawnZones || [];
 
-    // 30% Probability of Boss Spawn per raid
-    const spawnBoss = Math.random() < 0.30;
+    // Bosses are rare; most raids contain no elite squad.
+    const spawnBoss = Math.random() < 0.12;
     let bossSpawned = false;
 
     if (spawnBoss && zones.length > 0) {
@@ -185,8 +184,8 @@ export class GameRoom {
         speed: 95,
         runSpeed: 215, // Fast aggressive sprint
         health: {
-          head: 70, // 3x standard PMC HP
-          thorax: 160,
+          head: 90,
+          thorax: 200,
           stomach: 140,
           leftArm: 120,
           rightArm: 120,
@@ -194,6 +193,7 @@ export class GameRoom {
           rightLeg: 130
         },
         maxHpTotal: 870,
+        maxCombatHp: 290,
         armorClass: 5,
         helmetClass: 5,
         isAlive: true,
@@ -237,15 +237,30 @@ export class GameRoom {
             id: 'boss_loot_bitcoin',
             name: 'PHYSICAL BITCOIN (0.2 BTC)',
             type: 'valuable',
-            w: 1, h: 1, gx: 2, gy: 3,
+            w: 1, h: 1, gx: 3, gy: 2,
             color: '#f1c40f', tag: 'VALUABLE', sub: '0.2 BTC Crypto', rarity: 'gold'
           },
           {
             id: 'boss_loot_grizzly',
             name: 'GRIZZLY MEDICAL KIT',
             type: 'med',
-            w: 2, h: 2, gx: 0, gy: 3,
+            w: 2, h: 2, gx: 4, gy: 2,
             color: '#e74c3c', tag: 'TRAUMA', sub: '1800 / 1800 HP', rarity: 'gold'
+          },
+          {
+            id: 'boss_loot_grenade',
+            itemKey: 'grenade_f1',
+            name: ITEM_CATALOG.grenade_f1.name,
+            type: 'grenade',
+            grenadeType: 'frag',
+            fuseSec: ITEM_CATALOG.grenade_f1.fuseSec,
+            blastRadius: ITEM_CATALOG.grenade_f1.blastRadius,
+            damage: ITEM_CATALOG.grenade_f1.damage,
+            w: 1, h: 2, gx: 2, gy: 4,
+            color: ITEM_CATALOG.grenade_f1.color,
+            tag: ITEM_CATALOG.grenade_f1.tag,
+            sub: ITEM_CATALOG.grenade_f1.sub,
+            rarity: 'gold'
           }
         ]
       };
@@ -270,9 +285,10 @@ export class GameRoom {
           speed: 85,
           runSpeed: 180,
           health: {
-            head: 45, thorax: 110, stomach: 90, leftArm: 80, rightArm: 80, leftLeg: 85, rightLeg: 85
+            head: 75, thorax: 145, stomach: 90, leftArm: 80, rightArm: 80, leftLeg: 85, rightLeg: 85
           },
           maxHpTotal: 575,
+          maxCombatHp: 220,
           armorClass: 4,
           isAlive: true,
           state: 'PATROL',
@@ -299,7 +315,7 @@ export class GameRoom {
               id: `guard_armor_${g}`,
               name: 'HIGHCOM TROOPER T4',
               type: 'armor',
-              w: 2, h: 3, gx: 0, gy: 2,
+              w: 2, h: 3, gx: 4, gy: 2,
               color: '#27ae60', tag: 'ARMOR T4', sub: '85 / 85 Durability', rarity: 'tactical'
             },
             {
@@ -345,9 +361,10 @@ export class GameRoom {
         speed: 70,
         runSpeed: 160,
         health: {
-          head: 35, thorax: 85, stomach: 70, leftArm: 60, rightArm: 60, leftLeg: 65, rightLeg: 65
+          head: 60, thorax: 120, stomach: 70, leftArm: 60, rightArm: 60, leftLeg: 65, rightLeg: 65
         },
         maxHpTotal: 440,
+        maxCombatHp: 180,
         armorClass: 2,
         isAlive: true,
         state: 'PATROL',
@@ -383,9 +400,30 @@ export class GameRoom {
             type: 'valuable',
             w: 1, h: 1, gx: 1, gy: 2,
             color: '#f1c40f', tag: 'CASH', sub: '8,500 ₽', rarity: 'common'
+          },
+          {
+            id: `loot_bot_${i}_med`,
+            name: 'ESMARCH TOURNIQUET',
+            type: 'med',
+            w: 1, h: 1, gx: 2, gy: 2,
+            color: '#2ecc71', tag: 'BLEED', sub: 'Heavy Bleed Stop', rarity: 'common'
+          },
+          {
+            id: `loot_bot_${i}_valuable`,
+            name: 'SCAV POCKET FIND',
+            type: 'valuable',
+            w: 1, h: 1, gx: 3, gy: 2,
+            color: '#8e9b76', tag: 'BARTER', sub: 'Small barter item', rarity: 'common'
           }
         ]
       };
+      bot.loot = bot.loot.filter(item => {
+        if (item.type === 'weapon') return true;
+        if (item.id.endsWith('_ammo')) return Math.random() < 0.55;
+        if (item.id.endsWith('_rubles')) return Math.random() < 0.22;
+        if (item.id.endsWith('_med')) return Math.random() < 0.14;
+        return Math.random() < 0.04;
+      });
       this.bots.push(bot);
     }
     console.log(`[+] Spawned ${this.bots.length} Scav AI Bots across patrol zones on [${this.map.name}]`);
@@ -416,6 +454,7 @@ export class GameRoom {
       isCrouching: false,
       isAiming: false,
       isFiring: false,
+      activeWeaponType: 'none',
       isAlive: true,
       extracted: false,
       extractTimer: 0,
@@ -491,6 +530,7 @@ export class GameRoom {
     this.state = 'IN_RAID';
     this.raidTimeRemaining = RAID_DURATION_SECONDS;
     this.tickCount = 0;
+    this.playersLootNoise.clear();
 
     for (const p of this.players.values()) {
       const sp = this.map.getSpawnPoint(p.slot);
@@ -503,6 +543,7 @@ export class GameRoom {
       p.extracted = false;
       p.extractTimer = 0;
       p.isAlive = true;
+      p.grenadeCooldown = 0;
       p.scavKills = 0;
       p.inputQueue = [];
     }
@@ -544,6 +585,15 @@ export class GameRoom {
     return this.containers.get(containerId) || null;
   }
 
+  alertScavsToLooting(socketId, containerId) {
+    const player = this.players.get(socketId);
+    const container = this.containers.get(containerId);
+    if (!player || !container || !player.isAlive || player.extracted ||
+        Math.hypot(player.x - container.x, player.y - container.y) > 64) return false;
+    this.playersLootNoise.set(socketId, 5);
+    return true;
+  }
+
   transferContainerItem(containerId, itemId, action, targetItem) {
     const container = this.containers.get(containerId);
     if (!container) return false;
@@ -552,6 +602,9 @@ export class GameRoom {
       const idx = container.items.findIndex(it => it.id === itemId);
       if (idx !== -1) {
         container.items.splice(idx, 1);
+        if ((container.type === 'weapon_drop' || container.type === 'item_drop') && container.items.length === 0) {
+          this.containers.delete(containerId);
+        }
         return true;
       }
     } else if (action === 'put' && targetItem) {
@@ -559,6 +612,111 @@ export class GameRoom {
       return true;
     }
     return false;
+  }
+
+  dropItem(socketId, itemId, itemKey, sourceContainerId = null, itemState = null) {
+    const player = this.players.get(socketId);
+    if (this.state !== 'IN_RAID' || !player || !player.isAlive || player.extracted) return null;
+
+    let sourceItem = null;
+    let sourceContainer = null;
+    let sourceItemIndex = -1;
+    if (sourceContainerId) {
+      sourceContainer = this.containers.get(sourceContainerId);
+      if (!sourceContainer) return null;
+      sourceItemIndex = sourceContainer.items.findIndex(item => item.id === itemId);
+      if (sourceItemIndex === -1) return null;
+      sourceItem = sourceContainer.items[sourceItemIndex];
+      const sourceKey = sourceItem.weaponType || sourceItem.itemKey || sourceItem.id;
+      if (sourceKey !== itemKey) return null;
+    }
+
+    const itemDef = WEAPON_REGISTRY[itemKey] || ITEM_CATALOG[itemKey] ||
+      (sourceItem || (itemState?.id === itemKey ? itemState : null));
+    if (!itemDef) return null;
+
+    const groundId = `ground_item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const state = sourceItem || itemState || {};
+    const groundItem = {
+      ...itemDef,
+      id: groundId,
+      itemKey,
+      type: itemDef.type,
+      name: itemDef.name,
+      w: itemDef.w || 1,
+      h: itemDef.h || 1,
+      gx: 0,
+      gy: 0,
+      color: itemDef.color || '#7f8c8d',
+      tag: itemDef.tag || 'ITEM',
+      sub: itemDef.sub || '',
+      rarity: itemDef.rarity || 'common'
+    };
+    if (WEAPON_REGISTRY[itemKey]) groundItem.weaponType = itemKey;
+    for (const field of ['ammoCur', 'ammoMax', 'ammo', 'currentAmmo', 'maxAmmo', 'count', 'maxCount', 'durability', 'maxDurability', 'uses']) {
+      if (Number.isFinite(state[field])) {
+        const maximum = Number.isFinite(itemDef[field]) ? itemDef[field] : 5000;
+        groundItem[field] = Math.max(0, Math.min(maximum, state[field]));
+      }
+    }
+    const groundContainer = {
+      id: groundId,
+      name: groundItem.name,
+      type: WEAPON_REGISTRY[itemKey] || itemDef.type === 'weapon' ? 'weapon_drop' : 'item_drop',
+      x: player.x,
+      y: player.y,
+      gridW: groundItem.w,
+      gridH: groundItem.h,
+      items: [groundItem]
+    };
+
+    if (sourceContainer) {
+      sourceContainer.items.splice(sourceItemIndex, 1);
+      if ((sourceContainer.type === 'weapon_drop' || sourceContainer.type === 'item_drop') && sourceContainer.items.length === 0) {
+        this.containers.delete(sourceContainerId);
+      }
+    }
+    this.containers.set(groundContainer.id, groundContainer);
+    return groundContainer;
+  }
+
+  throwPlayerGrenade(socketId, grenadeKey, angle) {
+    const player = this.players.get(socketId);
+    const grenade = ITEM_CATALOG[grenadeKey];
+    if (this.state !== 'IN_RAID' || !player || !player.isAlive || player.extracted ||
+        grenade?.type !== 'grenade' || !Number.isFinite(angle) ||
+        (player.grenadeCooldown || 0) > 0) return false;
+
+    const range = 280;
+    let throwDistance = range;
+    for (let distance = 8; distance <= range; distance += 8) {
+      const x = player.x + Math.cos(angle) * distance;
+      const y = player.y + Math.sin(angle) * distance;
+      if (this.map.isSolid(Math.floor(x / this.map.tileSize), Math.floor(y / this.map.tileSize))) {
+        throwDistance = Math.max(24, distance - 8);
+        break;
+      }
+    }
+    const targetX = player.x + Math.cos(angle) * throwDistance;
+    const targetY = player.y + Math.sin(angle) * throwDistance;
+    player.grenadeCooldown = 1;
+    this.grenades.push({
+      id: `gren_${this.tickCount}_${Math.random().toString(36).substring(2, 8)}`,
+      ownerId: player.id,
+      x: player.x,
+      y: player.y,
+      startX: player.x,
+      startY: player.y,
+      targetX,
+      targetY,
+      timer: grenade.fuseSec,
+      maxTimer: grenade.fuseSec,
+      radius: grenade.blastRadius,
+      damage: grenade.damage,
+      type: 'frag',
+      hasExploded: false
+    });
+    return true;
   }
 
   enqueueInput(socketId, inputPayload) {
@@ -588,7 +746,7 @@ export class GameRoom {
   }
 
   /**
-   * 20Hz Authoritative Tick Loop
+   * 30Hz Authoritative Tick Loop
    */
   tick() {
     if (this.state !== 'IN_RAID') return;
@@ -602,6 +760,7 @@ export class GameRoom {
 
     // 1. Process Player Inputs & Movement
     for (const player of this.players.values()) {
+      player.grenadeCooldown = Math.max(0, (player.grenadeCooldown || 0) - dt);
       if (!player.isAlive || player.extracted) continue;
 
       if (player.inputQueue.length > 0) {
@@ -617,7 +776,7 @@ export class GameRoom {
 
           // Process Player Weapon Fire Hitreg vs Scav Bots
           if (input.isFiring) {
-            this._processPlayerShot(player);
+            this._processPlayerShot(player, input.shotAngle);
           }
         }
       } else {
@@ -668,7 +827,7 @@ export class GameRoom {
     // 4. Authoritative Simulated Grenade Simulation
     this._updateGrenades(dt);
 
-    // 5. Broadcast 20Hz Snapshot
+    // 5. Broadcast 30Hz Snapshot
     if (this.onSnapshotCallback) {
       const snapshot = this.getSnapshot();
       this.onSnapshotCallback(this.code, snapshot);
@@ -678,25 +837,20 @@ export class GameRoom {
   /**
    * Player Bullet Hit Registration against Scav Bots & Bosses
    */
-  _processPlayerShot(player) {
-    const wepType = player.activeWeaponType || 'm4a1';
+  _processPlayerShot(player, shotAngle = player.angle) {
+    const wepType = player.activeWeaponType || 'none';
+    if (wepType === 'none') return;
     const isMelee = (wepType === 'melee');
-    const maxRange = isMelee ? 60 : 550;
-    const angleThreshold = isMelee ? 0.6 : 0.12;
+    const maxRange = isMelee ? 60 : 520;
 
-    let baseDamage = 42;
-    if (wepType === 'ak74m') baseDamage = 49;
-    else if (wepType === 'asval') baseDamage = 54;
-    else if (wepType === 'vss') baseDamage = 64;
-    else if (wepType === 'vector') baseDamage = 34;
-    else if (wepType === 'mpx') baseDamage = 36;
-    else if (wepType === 'saiga12') baseDamage = 82;
-    else if (wepType === 'rpk16') baseDamage = 50;
-    else if (wepType === 'goldentt') baseDamage = 46;
-    else if (wepType === 'mp5') baseDamage = 34;
-    else if (wepType === 'mosin') baseDamage = 98;
-    else if (wepType === 'glock17') baseDamage = 32;
-    else if (wepType === 'melee') baseDamage = 35;
+    const baseDamage = WEAPON_REGISTRY[wepType]?.damage || 42;
+
+    const firingAngle = Number.isFinite(shotAngle) ? shotAngle : player.angle;
+    const originX = player.x + Math.cos(player.angle) * 36;
+    const originY = player.y + Math.sin(player.angle) * 36;
+    const dirX = Math.cos(firingAngle);
+    const dirY = Math.sin(firingAngle);
+    let nearestHit = null;
 
     for (const bot of this.bots) {
       if (!bot.isAlive) continue;
@@ -706,60 +860,56 @@ export class GameRoom {
       const dist = Math.hypot(toBotX, toBotY);
 
       if (dist < maxRange) {
-        // Line of sight check (8px step precision)
-        if (!this.map.hasLineOfSight(player.x, player.y, bot.x, bot.y)) continue;
-
-        // Angle check within bullet cone / melee swing arc
-        const angleToBot = Math.atan2(toBotY, toBotX);
-        let angleDiff = Math.abs(angleToBot - player.angle);
-        if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
-
-        if (angleDiff < angleThreshold) { // Direct hit!
-          const isHeadshot = (Math.random() < 0.35);
-
-          if (bot.isBoss) {
-            // Boss Killa / Reshala Class 5 armor damage mitigation
-            if (isHeadshot) {
-              const headDmg = Math.round(baseDamage * (wepType === 'mosin' || wepType === 'asval' ? 0.8 : 0.45));
-              bot.health.head = Math.max(0, bot.health.head - headDmg);
-            } else {
-              const bodyDmg = Math.round(baseDamage * 0.58);
-              bot.health.thorax = Math.max(0, bot.health.thorax - bodyDmg);
-            }
-          } else if (bot.isGuard) {
-            // Guard Class 4 armor mitigation
-            if (isHeadshot) {
-              bot.health.head = Math.max(0, bot.health.head - Math.round(baseDamage * 0.75));
-            } else {
-              bot.health.thorax = Math.max(0, bot.health.thorax - Math.round(baseDamage * 0.72));
-            }
-          } else {
-            if (isHeadshot) {
-              bot.health.head = 0;
-            } else {
-              bot.health.thorax = Math.max(0, bot.health.thorax - baseDamage);
-            }
-          }
-
-          // Check Bot Lethality
-          if (bot.health.head <= 0 || bot.health.thorax <= 0) {
-            this._killBotAndDropCorpse(bot);
-            player.scavKills = (player.scavKills || 0) + 1;
-          } else {
-            // Bot takes damage -> If it has line of sight, enter ATTACK; otherwise face damage direction
-            bot.angle = Math.atan2(player.y - bot.y, player.x - bot.x);
-            if (this.map.hasLineOfSight(bot.x, bot.y, player.x, player.y)) {
-              bot.targetPlayerId = player.id;
-              bot.state = 'ATTACK';
-              bot.acquireDelay = bot.isBoss ? 0.15 : 0.2;
-              bot.attackCooldown = bot.isBoss ? 0.25 : 0.3;
-            } else {
-              bot.targetPlayerId = null;
-              bot.state = 'PATROL';
-            }
-          }
-          break; // Bullet absorbed
+        if (isMelee) {
+          let angleDiff = Math.abs(Math.atan2(toBotY, toBotX) - firingAngle);
+          if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+          if (angleDiff > 0.6 || dist > maxRange) continue;
+          nearestHit = { bot, distance: dist };
+          break;
         }
+
+        const toOriginX = bot.x - originX;
+        const toOriginY = bot.y - originY;
+        const alongRay = toOriginX * dirX + toOriginY * dirY;
+        const acrossRay = Math.abs(toOriginX * dirY - toOriginY * dirX);
+        const hitRadius = bot.radius || PHYSICS_CONFIG.PLAYER_RADIUS;
+        if (alongRay < 0 || alongRay > maxRange || acrossRay > hitRadius) continue;
+        const hitX = originX + dirX * alongRay;
+        const hitY = originY + dirY * alongRay;
+        if (!this.map.hasLineOfSight(originX, originY, hitX, hitY)) continue;
+        if (!nearestHit || alongRay < nearestHit.distance) nearestHit = { bot, distance: alongRay };
+      }
+    }
+
+    if (!nearestHit) return;
+    const { bot } = nearestHit;
+    const isHeadshot = Math.random() < 0.22;
+    const armorMultiplier = bot.isBoss ? 0.48 : bot.isGuard ? 0.65 : 0.82;
+
+    if (isHeadshot) {
+      const headMultiplier = bot.isBoss ? (wepType === 'mosin' || wepType === 'asval' ? 0.8 : 0.45) : 0.9;
+      bot.health.head = Math.max(0, bot.health.head - Math.round(baseDamage * headMultiplier * armorMultiplier));
+    } else {
+      const bodyMultiplier = bot.isBoss ? 0.58 : bot.isGuard ? 0.82 : 1;
+      bot.health.thorax = Math.max(0, bot.health.thorax - Math.round(baseDamage * bodyMultiplier * armorMultiplier));
+    }
+
+    const killed = bot.health.head <= 0 || bot.health.thorax <= 0;
+    this.botHitEvents.push({ id: bot.id, x: bot.x, y: bot.y, shooterId: player.id, killed });
+
+    if (killed) {
+      this._killBotAndDropCorpse(bot);
+      player.scavKills = (player.scavKills || 0) + 1;
+    } else {
+      bot.angle = Math.atan2(player.y - bot.y, player.x - bot.x);
+      if (this.map.hasLineOfSight(bot.x, bot.y, player.x, player.y)) {
+        bot.targetPlayerId = player.id;
+        bot.state = 'ATTACK';
+        bot.acquireDelay = bot.isBoss ? 0.45 : bot.isGuard ? 0.8 : 1.0;
+        bot.attackCooldown = bot.isBoss ? 0.5 : 0.8;
+      } else {
+        bot.targetPlayerId = null;
+        bot.state = 'PATROL';
       }
     }
   }
@@ -828,8 +978,8 @@ export class GameRoom {
       type: 'corpse_scav',
       x: bot.x,
       y: bot.y,
-      gridW: bot.isBoss ? 4 : 3,
-      gridH: bot.isBoss ? 4 : 3,
+      gridW: 6,
+      gridH: bot.isBoss ? 6 : bot.isGuard ? 5 : 3,
       items: bot.loot
     };
 
@@ -846,6 +996,11 @@ export class GameRoom {
    */
   _updateScavBots(dt) {
     const alivePlayers = Array.from(this.players.values()).filter(p => p.isAlive && !p.extracted);
+    for (const [playerId, timer] of this.playersLootNoise) {
+      const remaining = timer - dt;
+      if (remaining <= 0) this.playersLootNoise.delete(playerId);
+      else this.playersLootNoise.set(playerId, remaining);
+    }
 
     for (const bot of this.bots) {
       if (!bot.isAlive) continue;
@@ -912,8 +1067,8 @@ export class GameRoom {
               targetHasLOS = true;
             }
           } else {
-            // Hearing check (acoustic alert radius: sprint <= 240px, gunfire <= 520px)
-            const canHear = (p.isSprinting && d < 240) || (p.isFiring && d < 520);
+            const lootingNoise = this.playersLootNoise.has(p.id) && d < 320;
+            const canHear = (p.isSprinting && d < 240) || (p.isFiring && d < 520) || lootingNoise;
             if (canHear && d < heardDist) {
               heardDist = d;
               heardPlayer = p;
@@ -926,6 +1081,9 @@ export class GameRoom {
           bot.angle = soundAngle;
           bot.isFiring = false;
           bot.state = 'PATROL';
+          bot.patrolTarget.x = heardPlayer.x;
+          bot.patrolTarget.y = heardPlayer.y;
+          bot.patrolTimer = Math.max(bot.patrolTimer, 5);
         }
       }
 
@@ -935,8 +1093,8 @@ export class GameRoom {
 
         if (bot.state !== 'ATTACK') {
           bot.state = 'ATTACK';
-          bot.acquireDelay = bot.isBoss ? 0.25 : 0.6;
-          bot.attackCooldown = bot.isBoss ? 0.35 : 0.6;
+          bot.acquireDelay = bot.isBoss ? 0.45 : bot.isGuard ? 0.75 : 1.0;
+          bot.attackCooldown = bot.isBoss ? 0.5 : bot.isGuard ? 0.8 : 0.95;
           bot.vx = 0;
           bot.vy = 0;
           bot.isFiring = false;
@@ -1005,7 +1163,7 @@ export class GameRoom {
           if (bot.attackCooldown <= 0) {
             if (this.map.hasLineOfSight(bot.x, bot.y, targetPlayer.x, targetPlayer.y)) {
               const bulletSpeed = bot.isBoss ? 780 : 620;
-              const spread = (Math.random() * 2 - 1) * (bot.isBoss ? 0.025 : 0.045);
+              const spread = (Math.random() * 2 - 1) * (bot.isBoss ? 0.035 : bot.isGuard ? 0.055 : 0.075);
               const shotAngle = bot.angle + spread;
               const spawnX = bot.x + Math.cos(bot.angle) * 16;
               const spawnY = bot.y + Math.sin(bot.angle) * 16;
@@ -1028,7 +1186,11 @@ export class GameRoom {
                 });
 
                 bot.isFiring = true;
-                bot.attackCooldown = bot.isBoss ? (0.22 + Math.random() * 0.15) : (0.75 + Math.random() * 0.4);
+                bot.attackCooldown = bot.isBoss
+                  ? (0.35 + Math.random() * 0.2)
+                  : bot.isGuard
+                    ? (0.7 + Math.random() * 0.35)
+                    : (0.8 + Math.random() * 0.4);
               } else {
                 bot.isFiring = false;
               }
@@ -1115,6 +1277,21 @@ export class GameRoom {
               player.isAlive = false;
               console.log(`[💥] Player '${player.name}' killed by Boss Grenade blast!`);
             }
+          }
+        }
+
+        for (const bot of this.bots) {
+          if (!bot.isAlive) continue;
+          const dist = Math.hypot(bot.x - g.x, bot.y - g.y);
+          if (dist > g.radius || !this.map.hasLineOfSight(g.x, g.y, bot.x, bot.y)) continue;
+          const armorMultiplier = bot.isBoss ? 0.48 : bot.isGuard ? 0.65 : 0.82;
+          const blastDamage = Math.round(g.damage * (1 - dist / g.radius) * armorMultiplier);
+          bot.health.thorax = Math.max(0, bot.health.thorax - blastDamage);
+          this.botHitEvents.push({ id: bot.id, x: bot.x, y: bot.y });
+          if (bot.health.head <= 0 || bot.health.thorax <= 0) {
+            this._killBotAndDropCorpse(bot);
+            const owner = this.players.get(g.ownerId);
+            if (owner) owner.scavKills = (owner.scavKills || 0) + 1;
           }
         }
       }
@@ -1233,7 +1410,7 @@ export class GameRoom {
         isCrouching: p.isCrouching,
         isAiming: p.isAiming,
         isFiring: p.isFiring,
-        activeWeaponType: p.activeWeaponType || 'm4a1',
+        activeWeaponType: p.activeWeaponType || 'none',
         isAlive: p.isAlive,
         extracted: p.extracted,
         extractProgress: p.extractTimer / EXTRACT_REQUIRED_TIME,
@@ -1257,10 +1434,11 @@ export class GameRoom {
         weaponType: b.weapon?.id || 'shotgun',
         x: Math.round(b.x * 100) / 100,
         y: Math.round(b.y * 100) / 100,
+        isSprinting: !!(b.runSpeed && Math.hypot(b.vx || 0, b.vy || 0) > b.runSpeed * 0.7),
         angle: Math.round(b.angle * 1000) / 1000,
         state: b.state,
         isFiring: b.isFiring,
-        healthPct: Math.round(((b.health.head + b.health.thorax) / (b.isBoss ? 230 : 120)) * 100)
+        healthPct: Math.max(0, Math.round(((b.health.head + b.health.thorax) / (b.maxCombatHp || 120)) * 100))
       });
     }
 
@@ -1287,7 +1465,8 @@ export class GameRoom {
         maxTimer: g.maxTimer,
         hasExploded: g.hasExploded
       })),
-      containers: Array.from(this.containers.values())
+      containers: Array.from(this.containers.values()),
+      botHits: this.botHitEvents.splice(0)
     };
   }
 }

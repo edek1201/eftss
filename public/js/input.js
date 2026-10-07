@@ -32,6 +32,7 @@ export class InputController {
     this.lastShotTime = 0;
 
     this.tacticalDevice = 'LASER'; // 'LASER' | 'FLASHLIGHT' | 'OFF'
+    this.hasWeapon = false;
 
     this.mouseX = window.innerWidth / 2;
     this.mouseY = window.innerHeight / 2;
@@ -44,6 +45,7 @@ export class InputController {
     this.onInteract = null;
     this.onSelectWeapon = null;
     this.onUseMed = null;
+    this.onThrowGrenade = null;
     this.onCloseMenu = null;
     this.onFireModeChange = null;
     this.onToggleBinds = null;
@@ -69,7 +71,7 @@ export class InputController {
         'KeyW', 'KeyA', 'KeyS', 'KeyD',
         'ShiftLeft', 'ShiftRight',
         'KeyC', 'KeyR', 'KeyF', 'KeyB', 'KeyT', 'KeyH',
-        'Tab', 'Digit1', 'Digit2', 'Digit4', 'Digit5', 'Digit6',
+        'Tab', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6',
         'Escape'
       ];
 
@@ -120,7 +122,7 @@ export class InputController {
       }
 
       // T: Toggle Tactical Device
-      if (e.code === 'KeyT' && !e.repeat) {
+      if (e.code === 'KeyT' && !e.repeat && this.hasWeapon) {
         if (this.tacticalDevice === 'LASER') this.tacticalDevice = 'FLASHLIGHT';
         else if (this.tacticalDevice === 'FLASHLIGHT') this.tacticalDevice = 'OFF';
         else this.tacticalDevice = 'LASER';
@@ -139,6 +141,7 @@ export class InputController {
 
       if (e.code === 'Digit1' && this.onSelectWeapon) this.onSelectWeapon(1);
       if (e.code === 'Digit2' && this.onSelectWeapon) this.onSelectWeapon(2);
+      if (e.code === 'Digit3' && !e.repeat && this.onThrowGrenade) this.onThrowGrenade();
       if (e.code === 'Digit4' && this.onUseMed) this.onUseMed('bandage');
       if (e.code === 'Digit5' && this.onUseMed) this.onUseMed('medkit');
       if (e.code === 'Digit6' && this.onUseMed) this.onUseMed('painkiller');
@@ -266,7 +269,7 @@ export class InputController {
       isCrouching: this.isCrouching,
       isAiming: this.isAiming,
       fireMode: this.fireMode,
-      tacticalDevice: this.tacticalDevice
+      tacticalDevice: this.hasWeapon ? this.tacticalDevice : 'OFF'
     };
   }
 }
