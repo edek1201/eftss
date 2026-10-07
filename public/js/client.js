@@ -60,7 +60,7 @@ class GameClient {
       isCrouching: false,
       isAiming: false,
       isFiring: false,
-      tacticalDevice: 'LASER',
+      tacticalDevice: 'OFF',
       extractProgress: 0,
       extractZoneName: null,
       extracted: false,
@@ -364,6 +364,7 @@ class GameClient {
   _updateWeaponHUD() {
     const wep = this.getActiveWeapon();
     if (!wep) return;
+    this.input.hasWeapon = wep.type !== 'none';
     if (this.dom.hudWepName) this.dom.hudWepName.textContent = wep.type === 'none' ? 'UNARMED' : wep.type.toUpperCase();
     if (this.dom.hudAmmoCur) this.dom.hudAmmoCur.textContent = (wep.type === 'melee' || wep.type === 'none') ? '-' : wep.ammoCur;
     if (this.dom.hudAmmoMax) this.dom.hudAmmoMax.textContent = (wep.type === 'melee' || wep.type === 'none') ? '-' : wep.ammoMax;
@@ -1595,7 +1596,9 @@ class GameClient {
     this.dom.badgeStand.classList.toggle('active', !this.localPlayer.isSprinting && !this.localPlayer.isCrouching);
 
     this.dom.badgeFiremode.textContent = (this.input.fireMode === 'SEMI') ? '[SEMI] (B)' : '[FULL-AUTO] (B)';
-    this.dom.badgeTactical.textContent = `${this.localPlayer.tacticalDevice} (T)`;
+    this.dom.badgeTactical.textContent = this.getActiveWeapon().type === 'none'
+      ? 'NO DEVICE'
+      : `${this.localPlayer.tacticalDevice} (T)`;
     this._updateWeaponHUD();
 
     if (this.localPlayer.extractProgress > 0) {

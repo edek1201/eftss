@@ -1324,7 +1324,7 @@ export class TacticalRenderer {
     ctx.save();
     ctx.translate(px, py);
 
-    const device = player.tacticalDevice || (isLocal ? 'LASER' : 'OFF');
+    const device = isUnarmed ? 'OFF' : (player.tacticalDevice || (isLocal ? 'LASER' : 'OFF'));
 
     if (device === 'LASER' && !isUnarmed) {
       ctx.save();
@@ -1403,7 +1403,11 @@ export class TacticalRenderer {
     // Arms
     ctx.fillStyle = uniformColor;
     ctx.beginPath();
-    ctx.moveTo(-3, -12); ctx.lineTo(10, -11); ctx.lineTo(18, -4); ctx.lineTo(15, -1); ctx.lineTo(7, -8); ctx.lineTo(-3, -9);
+    if (isUnarmed) {
+      ctx.moveTo(-5, -9); ctx.lineTo(-8, -13); ctx.lineTo(-13, -11); ctx.lineTo(-10, -6); ctx.lineTo(-5, -5);
+    } else {
+      ctx.moveTo(-3, -12); ctx.lineTo(10, -11); ctx.lineTo(18, -4); ctx.lineTo(15, -1); ctx.lineTo(7, -8); ctx.lineTo(-3, -9);
+    }
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = '#151a16';
@@ -1411,12 +1415,16 @@ export class TacticalRenderer {
 
     ctx.fillStyle = '#1c1f24';
     ctx.beginPath();
-    ctx.arc(17, -4, 3, 0, Math.PI * 2);
+    ctx.arc(isUnarmed ? -13 : 17, isUnarmed ? -11 : -4, 3, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = uniformColor;
     ctx.beginPath();
-    ctx.moveTo(-3, 12); ctx.lineTo(8, 11); ctx.lineTo(13, 4); ctx.lineTo(10, 2); ctx.lineTo(6, 8); ctx.lineTo(-3, 9);
+    if (isUnarmed) {
+      ctx.moveTo(-5, 9); ctx.lineTo(-8, 13); ctx.lineTo(-13, 11); ctx.lineTo(-10, 6); ctx.lineTo(-5, 5);
+    } else {
+      ctx.moveTo(-3, 12); ctx.lineTo(8, 11); ctx.lineTo(13, 4); ctx.lineTo(10, 2); ctx.lineTo(6, 8); ctx.lineTo(-3, 9);
+    }
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = '#151a16';
@@ -1424,7 +1432,7 @@ export class TacticalRenderer {
 
     ctx.fillStyle = '#1c1f24';
     ctx.beginPath();
-    ctx.arc(12, 4, 3, 0, Math.PI * 2);
+    ctx.arc(isUnarmed ? -13 : 12, isUnarmed ? 11 : 4, 3, 0, Math.PI * 2);
     ctx.fill();
 
     // RENDER ACTIVE WEAPON (M4A1, AK-74M, MP5, Mosin, Glock-17, Melee Hatchet)
@@ -1664,7 +1672,7 @@ export class TacticalRenderer {
     ctx.fillStyle = '#111417';
     ctx.fillRect(3.5, -2.5, 2.5, 5);
 
-    if (player.isAiming) {
+    if (player.isAiming && !isUnarmed) {
       ctx.strokeStyle = 'rgba(212, 163, 89, 0.4)';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -1673,27 +1681,6 @@ export class TacticalRenderer {
     }
 
     ctx.restore();
-
-    if (device === 'LASER' && isUnarmed) {
-      ctx.save();
-      ctx.translate(px, py);
-      ctx.rotate(angle);
-      ctx.strokeStyle = 'rgba(231, 76, 60, 0.75)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(17, -4);
-      ctx.lineTo(380, -4);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(380, -4, 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#ff3838';
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(17, -4, 2, 0, Math.PI * 2);
-      ctx.fillStyle = '#ff3838';
-      ctx.fill();
-      ctx.restore();
-    }
 
     // Overhead Callsign
     ctx.save();

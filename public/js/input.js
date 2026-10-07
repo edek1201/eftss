@@ -32,6 +32,7 @@ export class InputController {
     this.lastShotTime = 0;
 
     this.tacticalDevice = 'LASER'; // 'LASER' | 'FLASHLIGHT' | 'OFF'
+    this.hasWeapon = false;
 
     this.mouseX = window.innerWidth / 2;
     this.mouseY = window.innerHeight / 2;
@@ -120,7 +121,7 @@ export class InputController {
       }
 
       // T: Toggle Tactical Device
-      if (e.code === 'KeyT' && !e.repeat) {
+      if (e.code === 'KeyT' && !e.repeat && this.hasWeapon) {
         if (this.tacticalDevice === 'LASER') this.tacticalDevice = 'FLASHLIGHT';
         else if (this.tacticalDevice === 'FLASHLIGHT') this.tacticalDevice = 'OFF';
         else this.tacticalDevice = 'LASER';
@@ -266,7 +267,7 @@ export class InputController {
       isCrouching: this.isCrouching,
       isAiming: this.isAiming,
       fireMode: this.fireMode,
-      tacticalDevice: this.tacticalDevice
+      tacticalDevice: this.hasWeapon ? this.tacticalDevice : 'OFF'
     };
   }
 }
