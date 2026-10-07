@@ -65,7 +65,7 @@ class GameClient {
       extractZoneName: null,
       extracted: false,
       isAlive: true,
-      activeWeaponType: 'melee',
+      activeWeaponType: 'none',
       painkillerTimer: 0,
       health: {
         head: 35, thorax: 85, stomach: 70, leftArm: 60, rightArm: 60, leftLeg: 65, rightLeg: 65
@@ -87,6 +87,7 @@ class GameClient {
     // Reusable buffers to eliminate GC allocations in 60 FPS loop
     this._squadListBuffer = [];
     this._scavListBuffer = [];
+    this.botAudioRange = 700;
 
     this.bullets = [];
     this.grenades = [];
@@ -271,7 +272,7 @@ class GameClient {
         ammoMax: maxAmmo
       };
       if (this.dom.lobbyPrimaryName) this.dom.lobbyPrimaryName.textContent = primCfg.name;
-      if (this.dom.slot1Name) this.dom.slot1Name.textContent = primCfg.name.split(' ')[0] || primCfg.name;
+      if (this.dom.slot1Name) this.dom.slot1Name.textContent = primKey.toUpperCase();
     } else {
       this.weapons[1] = null;
       if (this.dom.lobbyPrimaryName) this.dom.lobbyPrimaryName.textContent = 'EMPTY (UNARMED)';
@@ -293,7 +294,7 @@ class GameClient {
         ammoMax: maxAmmo
       };
       if (this.dom.lobbySecondaryName) this.dom.lobbySecondaryName.textContent = secCfg.name;
-      if (this.dom.slot2Name) this.dom.slot2Name.textContent = secCfg.name.split(' ')[0] || secCfg.name;
+      if (this.dom.slot2Name) this.dom.slot2Name.textContent = secKey.toUpperCase();
     } else {
       this.weapons[2] = null;
       if (this.dom.lobbySecondaryName) this.dom.lobbySecondaryName.textContent = 'EMPTY (NONE)';
@@ -322,17 +323,6 @@ class GameClient {
     const slot6El = document.getElementById('slot-6-cnt');
     if (slot6El) slot6El.textContent = `x${this.medInventory.painkiller}`;
 
-    // Select active slot
-    if (this.weapons[this.activeWeaponSlot]) {
-      // Keep current equipped slot
-    } else if (this.weapons[1]) {
-      this.activeWeaponSlot = 1;
-    } else if (this.weapons[2]) {
-      this.activeWeaponSlot = 2;
-    } else {
-      this.activeWeaponSlot = 1;
-    }
-
     const active = this.getActiveWeapon();
     this.localPlayer.activeWeaponType = active.type;
     this.input.cyclicRateMs = active.config.cyclicRateMs;
@@ -342,10 +332,8 @@ class GameClient {
   getActiveWeapon() {
     const wep = this.weapons[this.activeWeaponSlot];
     if (wep) return wep;
-    const altSlot = (this.activeWeaponSlot === 1) ? 2 : 1;
-    if (this.weapons[altSlot]) return this.weapons[altSlot];
     return {
-      type: 'melee',
+      type: 'none',
       config: WEAPON_REGISTRY.melee,
       ammoCur: 0,
       ammoMax: 0
@@ -376,13 +364,13 @@ class GameClient {
   _updateWeaponHUD() {
     const wep = this.getActiveWeapon();
     if (!wep) return;
-    if (this.dom.hudWepName) this.dom.hudWepName.textContent = wep.config.name.toUpperCase();
-    if (this.dom.hudAmmoCur) this.dom.hudAmmoCur.textContent = (wep.type === 'melee') ? '-' : wep.ammoCur;
-    if (this.dom.hudAmmoMax) this.dom.hudAmmoMax.textContent = (wep.type === 'melee') ? '-' : wep.ammoMax;
-    if (this.dom.hudAmmoType) this.dom.hudAmmoType.textContent = (wep.type === 'melee') ? 'MELEE' : wep.config.ammoType;
+    if (this.dom.hudWepName) this.dom.hudWepName.textContent = wep.type === 'none' ? 'UNARMED' : wep.type.toUpperCase();
+    if (this.dom.hudAmmoCur) this.dom.hudAmmoCur.textContent = (wep.type === 'melee' || wep.type === 'none') ? '-' : wep.ammoCur;
+    if (this.dom.hudAmmoMax) this.dom.hudAmmoMax.textContent = (wep.type === 'melee' || wep.type === 'none') ? '-' : wep.ammoMax;
+    if (this.dom.hudAmmoType) this.dom.hudAmmoType.textContent = wep.type === 'none' ? 'NO WEAPON' : (wep.type === 'melee' ? 'MELEE' : wep.config.ammoType);
     if (this.dom.badgeFiremode) {
-      if (wep.type === 'melee') {
-        this.dom.badgeFiremode.textContent = '[MELEE]';
+      if (wep.type === 'melee' || wep.type === 'none') {
+        this.dom.badgeFiremode.textContent = wep.type === 'none' ? '[UNARMED]' : '[MELEE]';
         this.dom.badgeFiremode.classList.remove('highlight');
       } else {
         this.dom.badgeFiremode.textContent = (this.input.fireMode === 'SEMI') ? '[SEMI] (B)' : '[AUTO] (B)';
@@ -1060,7 +1048,7 @@ class GameClient {
             x: p.x, y: p.y, angle: p.angle, radius: PHYSICS_CONFIG.PLAYER_RADIUS,
             isAiming: p.isAiming, isCrouching: p.isCrouching, isSprinting: p.isSprinting,
             isFiring: p.isFiring, tacticalDevice: 'LASER', extractProgress: p.extractProgress,
-            activeWeaponType: p.activeWeaponType || 'm4a1',
+            activeWeaponType: p.activeWeaponType || 'none',
             buffer: []
           };
           this.remotePlayers.set(p.id, remote);
@@ -1073,7 +1061,7 @@ class GameClient {
         remote.isCrouching = p.isCrouching;
         remote.isSprinting = p.isSprinting;
         remote.isFiring = p.isFiring;
-        remote.activeWeaponType = p.activeWeaponType || 'm4a1';
+        remote.activeWeaponType = p.activeWeaponType || 'none';
         remote.extractProgress = p.extractProgress;
 
         remote.buffer.push({ time: now, x: p.x, y: p.y, angle: p.angle });
@@ -1087,22 +1075,46 @@ class GameClient {
 
     // 2. Synchronize Living PVE Scav Bots & Corpse Containers
     if (snapshot.bots) {
+      const activeBotIds = new Set();
       for (const b of snapshot.bots) {
+        activeBotIds.add(b.id);
         let bot = this.scavBots.get(b.id);
         if (!bot) {
-          bot = { ...b };
+          bot = { ...b, lastStepAt: now, lastX: b.x, lastY: b.y };
           this.scavBots.set(b.id, bot);
         } else {
+          const distanceToPlayer = Math.hypot(b.x - this.localPlayer.x, b.y - this.localPlayer.y);
+
           // Play voiceline bark if state transitioned to ALERT
           if (b.state === 'ALERT' && bot.state !== 'ALERT') {
             audioEngine.playScavBark();
           }
+
+          if (b.isFiring && !bot.isFiring && distanceToPlayer < this.botAudioRange) {
+            const weaponDef = WEAPON_REGISTRY[b.weaponType];
+            const soundType = weaponDef?.soundType || 'ak74m';
+            const volume = Math.max(0.06, 1 - distanceToPlayer / this.botAudioRange);
+            audioEngine.playGunshot(soundType, false, volume);
+          }
+
+          const movedDistance = Math.hypot(b.x - bot.lastX, b.y - bot.lastY);
+          if (movedDistance > 1.5 && now - bot.lastStepAt > 320 && distanceToPlayer < 360) {
+            const volume = Math.max(0.08, 1 - distanceToPlayer / 420);
+            audioEngine.playFootstep(b.isSprinting ? 'SPRINT' : 'STAND', volume);
+            bot.lastStepAt = now;
+          }
+
           bot.x = b.x;
           bot.y = b.y;
+          bot.lastX = b.x;
+          bot.lastY = b.y;
           bot.hp = b.hp;
+          bot.healthPct = b.healthPct;
           bot.angle = b.angle;
           bot.state = b.state;
           bot.isFiring = b.isFiring;
+          bot.isSprinting = b.isSprinting;
+          bot.weaponType = b.weaponType;
           bot.isBoss = b.isBoss;
           bot.bossType = b.bossType;
           bot.isGuard = b.isGuard;
@@ -1110,6 +1122,13 @@ class GameClient {
           bot.speechTimer = b.speechTimer;
         }
       }
+      for (const id of this.scavBots.keys()) {
+        if (!activeBotIds.has(id)) this.scavBots.delete(id);
+      }
+    }
+
+    for (const hit of snapshot.botHits || []) {
+      this.renderer.emitBloodParticles(hit.x, hit.y);
     }
 
     if (snapshot.grenades) {
@@ -1371,7 +1390,9 @@ class GameClient {
     const activeWep = this.getActiveWeapon();
     const shouldFire = this.input.shouldFireWeapon(currentTime, isInvOpen);
 
-    if (shouldFire) {
+    if (activeWep.type === 'none') {
+      this.localPlayer.isFiring = false;
+    } else if (shouldFire) {
       if (activeWep.type === 'melee') {
         this.localPlayer.isFiring = true;
         audioEngine.playMeleeSwing();

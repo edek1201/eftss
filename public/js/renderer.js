@@ -30,6 +30,8 @@ export class TacticalRenderer {
     this.map = null;
     this.tileSize = 32;
     this.zoom = 1.5;
+    this.bloodParticles = [];
+    this.lastParticleUpdate = 0;
 
     this.fogCanvas = document.createElement('canvas');
     this.fogCtx = this.fogCanvas.getContext('2d');
@@ -214,6 +216,49 @@ export class TacticalRenderer {
     this.bloodFlashAlpha = 0.75;
   }
 
+  emitBloodParticles(x, y) {
+    for (let i = 0; i < 10; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 24 + Math.random() * 82;
+      const lifetime = 0.35 + Math.random() * 0.3;
+      this.bloodParticles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 22,
+        lifetime,
+        maxLifetime: lifetime,
+        size: 1.5 + Math.random() * 2.5
+      });
+    }
+  }
+
+  _renderBloodParticles(ctx) {
+    const now = performance.now();
+    const dt = this.lastParticleUpdate ? Math.min((now - this.lastParticleUpdate) / 1000, 0.05) : 0;
+    this.lastParticleUpdate = now;
+
+    for (let i = this.bloodParticles.length - 1; i >= 0; i--) {
+      const particle = this.bloodParticles[i];
+      particle.lifetime -= dt;
+      if (particle.lifetime <= 0) {
+        this.bloodParticles.splice(i, 1);
+        continue;
+      }
+
+      particle.x += particle.vx * dt;
+      particle.y += particle.vy * dt;
+      particle.vx *= 0.96;
+      particle.vy += 75 * dt;
+      ctx.globalAlpha = particle.lifetime / particle.maxLifetime;
+      ctx.fillStyle = '#b51f24';
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   updateCamera(targetX, targetY, isAiming = false) {
     this.camera.targetX = targetX;
     this.camera.targetY = targetY;
@@ -305,6 +350,7 @@ export class TacticalRenderer {
         }
       }
     }
+    this._renderBloodParticles(ctx);
 
     // 5. REMOTE SQUAD MEMBERS
     for (const remote of squadPlayers) {
@@ -1381,12 +1427,13 @@ export class TacticalRenderer {
     ctx.fill();
 
     // RENDER ACTIVE WEAPON (M4A1, AK-74M, MP5, Mosin, Glock-17, Melee Hatchet)
-    const wep = player.activeWeaponType || 'melee';
-    let muzzleOffset = 38;
-    let isFirearm = true;
+    const wep = player.activeWeaponType || 'none';
+    let muzzleOffset = 0;
+    let isFirearm = false;
 
-    if (wep === 'melee') {
-      isFirearm = false;
+    if (wep === 'none') {
+      // Empty loadout slot: render no weapon in the operator's hands.
+    } else if (wep === 'melee') {
       // Tactical Hatchet in hands
       ctx.fillStyle = '#4a3728'; // Wooden/polymer shaft
       ctx.fillRect(10, -3, 14, 2.5);
@@ -1603,7 +1650,6 @@ export class TacticalRenderer {
       ctx.fill();
       ctx.restore();
     }
-
     // FAST Helmet
     ctx.beginPath();
     ctx.arc(-2, 0, 7.5, 0, Math.PI * 2);

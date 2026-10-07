@@ -40,6 +40,7 @@ export class GameRoom {
     this.map = new TacticalMap(this.mapId);
     this.players = new Map();
     this.bots = []; // Living Scav AI Bots & Bosses
+    this.botHitEvents = [];
     this.projectiles = []; // Server-authoritative Scav & player projectiles
     this.grenades = []; // Active simulated flash & HE grenades
     this.containers = new Map();
@@ -416,6 +417,7 @@ export class GameRoom {
       isCrouching: false,
       isAiming: false,
       isFiring: false,
+      activeWeaponType: 'none',
       isAlive: true,
       extracted: false,
       extractTimer: 0,
@@ -742,7 +744,8 @@ export class GameRoom {
    * Player Bullet Hit Registration against Scav Bots & Bosses
    */
   _processPlayerShot(player) {
-    const wepType = player.activeWeaponType || 'm4a1';
+    const wepType = player.activeWeaponType || 'none';
+    if (wepType === 'none') return;
     const isMelee = (wepType === 'melee');
     const maxRange = isMelee ? 60 : 550;
     const angleThreshold = isMelee ? 0.6 : 0.12;
@@ -803,6 +806,8 @@ export class GameRoom {
               bot.health.thorax = Math.max(0, bot.health.thorax - baseDamage);
             }
           }
+
+          this.botHitEvents.push({ id: bot.id, x: bot.x, y: bot.y });
 
           // Check Bot Lethality
           if (bot.health.head <= 0 || bot.health.thorax <= 0) {
@@ -1296,7 +1301,7 @@ export class GameRoom {
         isCrouching: p.isCrouching,
         isAiming: p.isAiming,
         isFiring: p.isFiring,
-        activeWeaponType: p.activeWeaponType || 'm4a1',
+        activeWeaponType: p.activeWeaponType || 'none',
         isAlive: p.isAlive,
         extracted: p.extracted,
         extractProgress: p.extractTimer / EXTRACT_REQUIRED_TIME,
@@ -1320,6 +1325,7 @@ export class GameRoom {
         weaponType: b.weapon?.id || 'shotgun',
         x: Math.round(b.x * 100) / 100,
         y: Math.round(b.y * 100) / 100,
+        isSprinting: !!(b.runSpeed && Math.hypot(b.vx || 0, b.vy || 0) > b.runSpeed * 0.7),
         angle: Math.round(b.angle * 1000) / 1000,
         state: b.state,
         isFiring: b.isFiring,
@@ -1350,7 +1356,8 @@ export class GameRoom {
         maxTimer: g.maxTimer,
         hasExploded: g.hasExploded
       })),
-      containers: Array.from(this.containers.values())
+      containers: Array.from(this.containers.values()),
+      botHits: this.botHitEvents.splice(0)
     };
   }
 }
