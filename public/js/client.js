@@ -369,6 +369,15 @@ class GameClient {
     };
   }
 
+  _syncActiveWeaponAmmoToInventory() {
+    const weapon = this.getActiveWeapon();
+    const gridId = this.activeWeaponSlot === 1 ? 'primaryWeapon' : 'secondaryWeapon';
+    const item = this.inventory.items.find(it => it.gridId === gridId && getWeaponConfig(it) === weapon.config);
+    if (!item) return;
+    item.ammoCur = weapon.ammoCur;
+    item.ammoMax = weapon.ammoMax;
+  }
+
   _switchWeaponSlot(slot) {
     if (slot !== 1 && slot !== 2) return;
     if (this.activeWeaponSlot === slot) return;
@@ -1503,6 +1512,7 @@ class GameClient {
       } else {
         this.localPlayer.isFiring = true;
         activeWep.ammoCur--;
+        this._syncActiveWeaponAmmoToInventory();
         this._updateWeaponHUD();
 
         const isAuto = (this.input.fireMode === 'AUTO');
