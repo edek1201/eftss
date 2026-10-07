@@ -1,6 +1,6 @@
 /**
  * EFT Tactical 2D - Realistic Scale Maps & Scav Patrol Zones
- * Factory (60x60 CQB, 1920x1920 px), Warehouse / Customs (100x100, 3200x3200 px), Bunker (80x80, 2560x2560 px)
+ * Factory, Customs, Reserve, and Streets of Tarkov map layouts.
  */
 
 export const TILE_TYPES = {
@@ -13,7 +13,8 @@ export const TILE_TYPES = {
   FLOOR_OFFICE: 6,
   FORKLIFT_PROP: 7,
   BLAST_DOOR: 8,
-  RAILROAD_TRACK: 9
+  RAILROAD_TRACK: 9,
+  ROAD_ASPHALT: 10
 };
 
 export const MAP_CONFIGS = {
@@ -46,6 +47,16 @@ export const MAP_CONFIGS = {
     cqbTag: "DEEP SUBTERRANEAN (100x100)",
     scavCount: 14,
     description: "Subterranean military bunker complex: blast doors, turbine halls, server vaults, D-2 tunnel, and hermetic door extract."
+  },
+  streets: {
+    id: "streets",
+    name: "Streets of Tarkov (Residential District)",
+    width: 140,
+    height: 140,
+    tileSize: 32,
+    cqbTag: "URBAN COMBAT (140x140)",
+    scavCount: 18,
+    description: "Dense Norvinsk city blocks, apartment courtyards, a medical clinic, a central boulevard, and dangerous urban extracts."
   }
 };
 
@@ -79,6 +90,8 @@ export class TacticalMap {
       this._buildWarehouse120();
     } else if (this.mapId === "bunker") {
       this._buildBunker100();
+    } else if (this.mapId === "streets") {
+      this._buildStreets140();
     }
   }
 
@@ -695,6 +708,103 @@ export class TacticalMap {
       { x: 14 * 32, y: 14 * 32, zone: "Hermetic Door Control", radius: 160 },
       { x: 14 * 32, y: 84 * 32, zone: "Ventilation Shaft Base", radius: 160 },
       { x: 84 * 32, y: 84 * 32, zone: "D-2 Blast Gate", radius: 160 }
+    ];
+  }
+
+  _buildStreets140() {
+    this.grid.fill(TILE_TYPES.FLOOR_CONCRETE);
+    this._drawHWall(0, 0, this.width);
+    this._drawHWall(0, this.height - 1, this.width);
+    this._drawVWall(0, 0, this.height);
+    this._drawVWall(this.width - 1, 0, this.height);
+
+    const building = (x, y, w, h, doors, floor = TILE_TYPES.FLOOR_OFFICE) => {
+      this._fillBox(x + 1, y + 1, w - 2, h - 2, floor);
+      this._drawHWall(x, y, w);
+      this._drawHWall(x, y + h - 1, w);
+      this._drawVWall(x, y, h);
+      this._drawVWall(x + w - 1, y, h);
+      for (const [doorX, doorY] of doors) this._setTile(doorX, doorY, TILE_TYPES.DOOR_FRAME);
+    };
+
+    // Broad avenues divide the district into blocks; narrower openings give
+    // each building multiple entries and keep the main routes connected.
+    this._fillBox(48, 1, 6, 138, TILE_TYPES.ROAD_ASPHALT);
+    this._fillBox(94, 1, 6, 138, TILE_TYPES.ROAD_ASPHALT);
+    this._fillBox(1, 48, 138, 6, TILE_TYPES.ROAD_ASPHALT);
+    this._fillBox(1, 94, 138, 6, TILE_TYPES.ROAD_ASPHALT);
+    this._fillBox(1, 69, 138, 5, TILE_TYPES.ROAD_ASPHALT);
+    this._fillBox(69, 1, 5, 138, TILE_TYPES.ROAD_ASPHALT);
+
+    building(8, 8, 34, 32, [[24, 8], [41, 24], [24, 39]], TILE_TYPES.FLOOR_OFFICE);
+    building(58, 8, 29, 32, [[72, 8], [58, 24], [86, 24], [72, 39]]);
+    building(104, 8, 28, 32, [[118, 8], [104, 24], [131, 24], [118, 39]], TILE_TYPES.FLOOR_OFFICE);
+    building(8, 59, 34, 29, [[24, 59], [41, 73], [24, 87]]);
+    building(58, 59, 29, 29, [[72, 59], [58, 73], [86, 73], [72, 87]], TILE_TYPES.FLOOR_OFFICE);
+    building(104, 59, 28, 29, [[118, 59], [104, 73], [131, 73], [118, 87]]);
+    building(8, 104, 34, 28, [[24, 104], [41, 118], [24, 131]], TILE_TYPES.FLOOR_OFFICE);
+    building(58, 104, 29, 28, [[72, 104], [58, 118], [86, 118], [72, 131]]);
+    building(104, 104, 28, 28, [[118, 104], [104, 118], [131, 118]], TILE_TYPES.FLOOR_OFFICE);
+
+    // Interior walls turn larger city buildings into searchable rooms.
+    for (const y of [20, 30, 70, 78, 115, 123]) {
+      this._drawHWall(10, y, 30);
+      this._setTile(24, y, TILE_TYPES.DOOR_FRAME);
+      this._drawHWall(106, y, 24);
+      this._setTile(118, y, TILE_TYPES.DOOR_FRAME);
+    }
+    for (const x of [20, 30, 66, 79, 111, 123]) {
+      this._drawVWall(x, 10, 28);
+      this._setTile(x, 24, TILE_TYPES.DOOR_FRAME);
+      this._drawVWall(x, 106, 24);
+      this._setTile(x, 118, TILE_TYPES.DOOR_FRAME);
+    }
+
+    // Street barricades and abandoned vehicles provide cover without sealing
+    // the boulevard or the cross-street approaches.
+    for (const [x, y] of [[18, 54], [80, 44], [108, 90], [40, 98], [88, 75], [55, 90], [101, 51]]) {
+      this._fillBox(x, y, 2, 2, TILE_TYPES.COVER_CRATE);
+    }
+    this._setTile(66, 62, TILE_TYPES.FORKLIFT_PROP);
+    this._setTile(80, 80, TILE_TYPES.FORKLIFT_PROP);
+
+    this.extractZones = [
+      { id: "pinewood_extract", name: "Pinewood Service Road", tileX: 2, tileY: 2, tileW: 8, tileH: 8, color: "rgba(46, 204, 113, 0.35)", border: "#2ecc71" },
+      { id: "river_extract", name: "River Embankment", tileX: 130, tileY: 2, tileW: 8, tileH: 8, color: "rgba(52, 152, 219, 0.35)", border: "#3498db" },
+      { id: "checkpoint_extract", name: "Collapsed Checkpoint", tileX: 130, tileY: 130, tileW: 8, tileH: 8, color: "rgba(241, 196, 15, 0.35)", border: "#f1c40f" }
+    ];
+
+    this.spawnPoints = [
+      { x: 16 * 32 + 16, y: 66 * 32 + 16, angle: 0 },
+      { x: 17 * 32 + 16, y: 66 * 32 + 16, angle: 0 },
+      { x: 16 * 32 + 16, y: 67 * 32 + 16, angle: 0 },
+      { x: 17 * 32 + 16, y: 67 * 32 + 16, angle: 0 }
+    ];
+
+    this.containers = [
+      { id: "street_pinewood_cache", type: "crate_military", name: "Pinewood Loading Bay Case", x: 27 * 32 + 16, y: 14 * 32 + 16, gridW: 6, gridH: 3 },
+      { id: "street_apartment_corpse", type: "corpse_scav", name: "Apartment Courtyard Scav", x: 71 * 32 + 16, y: 28 * 32 + 16, gridW: 3, gridH: 3 },
+      { id: "street_clinic_med", type: "med_bag", name: "City Clinic Trauma Bag", x: 116 * 32 + 16, y: 18 * 32 + 16, gridW: 3, gridH: 3 },
+      { id: "street_market_ammo", type: "ammo_box", name: "Klimov Street Ammo Cache", x: 26 * 32 + 16, y: 77 * 32 + 16, gridW: 3, gridH: 3 },
+      { id: "street_theater_case", type: "crate_military", name: "Theatre Service Weapon Case", x: 72 * 32 + 16, y: 67 * 32 + 16, gridW: 6, gridH: 3 },
+      { id: "street_construction_corpse", type: "corpse_scav", name: "Construction Raider", x: 118 * 32 + 16, y: 80 * 32 + 16, gridW: 3, gridH: 3 },
+      { id: "street_garage_case", type: "crate_military", name: "Underground Garage Stash", x: 28 * 32 + 16, y: 111 * 32 + 16, gridW: 6, gridH: 3 },
+      { id: "street_bank_tech", type: "crate_military", name: "Financial District Tech Case", x: 70 * 32 + 16, y: 111 * 32 + 16, gridW: 6, gridH: 3 },
+      { id: "street_checkpoint_med", type: "med_bag", name: "Checkpoint First Aid Kit", x: 117 * 32 + 16, y: 119 * 32 + 16, gridW: 3, gridH: 3 }
+    ];
+
+    this.scavSpawnZones = [
+      { x: 28 * 32, y: 25 * 32, zone: "Pinewood Apartments", radius: 180 },
+      { x: 72 * 32, y: 18 * 32, zone: "Residential Courtyard", radius: 180 },
+      { x: 118 * 32, y: 25 * 32, zone: "City Clinic", radius: 180 },
+      { x: 20 * 32, y: 68 * 32, zone: "Klimov Street", radius: 200 },
+      { x: 72 * 32, y: 68 * 32, zone: "Theatre Boulevard", radius: 220 },
+      { x: 118 * 32, y: 68 * 32, zone: "Financial District", radius: 200 },
+      { x: 26 * 32, y: 118 * 32, zone: "Underground Garage", radius: 180 },
+      { x: 73 * 32, y: 118 * 32, zone: "Business Quarter", radius: 200 },
+      { x: 118 * 32, y: 118 * 32, zone: "Checkpoint Approach", radius: 180 },
+      { x: 54 * 32, y: 52 * 32, zone: "Western Crossroads", radius: 180 },
+      { x: 97 * 32, y: 97 * 32, zone: "Southern Crossroads", radius: 180 }
     ];
   }
 

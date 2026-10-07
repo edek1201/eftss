@@ -736,7 +736,7 @@ html, body {
 
 .map-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -1502,7 +1502,7 @@ html, body {
   color: #7b8a99;
 }
 
-.btn-buy-item, .btn-sell-item {
+.btn-buy-item, .btn-sell-item, .btn-barter-deal {
   margin-top: 4px;
   background: #1b2838;
   border: 1px solid #334860;
@@ -1523,6 +1523,21 @@ html, body {
   background: #1a3824;
   border-color: #2ecc71;
   color: #2ecc71;
+}
+.btn-barter-deal:not(:disabled):hover {
+  background: #382d16;
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+.btn-barter-deal:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.trader-empty-state {
+  padding: 48px;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 13px;
 }
 
 @media (max-width: 760px) {

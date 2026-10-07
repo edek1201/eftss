@@ -15,7 +15,7 @@ EFT/
 ├── server.js                 # Authoritative server, WebSocket transport & account API
 ├── shared/
 │   ├── physics.js            # Circle-vs-AABB sliding physics, stamina, vector math
-│   └── map.js                # Factory (80x80), Customs (120x120), Bunker (100x100) + Loot Sites
+│   └── map.js                # Factory, Customs, Reserve, Streets of Tarkov + Loot Sites
 ├── server/
 │   ├── account-store.js      # Password hashing and persistent PMC accounts
 │   └── game-engine.js        # 30Hz simulation, scav AI, container loot & transfer sync
@@ -48,7 +48,7 @@ Zero external `.mp3` or `.wav` files required. 100% procedurally synthesized via
 ---
 
 ## 2. In-Raid Interactive Loot Containers (`shared/map.js`, `server.js`, `public/js/inventory.js`)
-Map tiles are populated with interactive loot entities across all 3 maps:
+Map tiles are populated with interactive loot entities across all 4 maps:
 - **Container Types**:
   - **Green Military Crates** (6x3 weapon cases): Full-size weapons, ammo, armor, and valuables; items keep their real inventory dimensions.
   - **Dead Scav Bodies** ($3\times 3$ grid): Barter valuables (Graphics Card GPU, Physical Bitcoin, Military Cable, Golden Rooster) and bandages.
@@ -59,6 +59,8 @@ Map tiles are populated with interactive loot entities across all 3 maps:
 - **Expanded Routes**: Each map has nine fixed loot sites distributed across its major areas, with different crate, ammo, and medical-cache layouts.
 - **Expanded Arsenal**: AKM, SCAR-H, MDR, MP7, P90, UMP45, SV-98, and M1911 join the existing weapons, with compatible magazines and ammunition.
 - **Throwable Grenades**: Rare F-1, RGD-5, and M67 fragmentation grenades can be thrown with `[3]`. Their blast can kill at close range; walls reduce blast damage.
+- **Streets of Tarkov**: A 140x140 urban district with apartment blocks, a clinic, a central boulevard, nine loot sites, scav patrol areas, and three extraction routes.
+- **Trader Barter Contracts**: Exchange recovered chainlets for a grenade, workshop goods and intelligence for a trauma kit, or military electronics for battle rifle ammunition.
 - **Discard Any Item**: Hold any carried item and press `[G]` or drag it outside the inventory to leave it on the ground for anyone to loot. Stash items cannot be dropped.
 - **Split Container Looting Grid**:
   - Pressing `[F]` opens a split interface: Container contents on the left, player rig and backpack on the right.
@@ -98,6 +100,7 @@ Map tiles are populated with interactive loot entities across all 3 maps:
 - **Scav Combat**:
   - Scavs take several centre-mass hits, while heavier guards and bosses have stronger armor.
   - Their aim takes time to settle and they fire less often; regular Scavs are less accurate than elite enemies.
+  - Confirmed hits display a brief hit marker and synthesized audio cue; lethal hits use a distinct marker. Hit targets visibly flinch.
 - **HUD Synchronization**:
   - Pressing `[B]` toggles mode with mechanical audio feedback.
   - HUD displays active mode: `[SEMI] (B)` vs. highlighted `[FULL-AUTO] (B)`.

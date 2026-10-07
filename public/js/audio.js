@@ -267,6 +267,24 @@ class TacticalAudioEngine {
     osc.stop(now + 0.025);
   }
 
+  playHitConfirm(killed = false) {
+    if (!this.ensureContext()) return;
+    const now = this.ctx.currentTime;
+    const tones = killed ? [{ frequency: 760, time: 0 }, { frequency: 1180, time: 0.055 }] : [{ frequency: 940, time: 0 }];
+    for (const tone of tones) {
+      const oscillator = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(tone.frequency, now + tone.time);
+      gain.gain.setValueAtTime(0.12, now + tone.time);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + tone.time + 0.045);
+      oscillator.connect(gain);
+      gain.connect(this.ctx.destination);
+      oscillator.start(now + tone.time);
+      oscillator.stop(now + tone.time + 0.045);
+    }
+  }
+
   playReload(isFast = false) {
     if (!this.ensureContext()) return;
     const now = this.ctx.currentTime;

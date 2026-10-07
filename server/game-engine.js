@@ -894,9 +894,10 @@ export class GameRoom {
       bot.health.thorax = Math.max(0, bot.health.thorax - Math.round(baseDamage * bodyMultiplier * armorMultiplier));
     }
 
-    this.botHitEvents.push({ id: bot.id, x: bot.x, y: bot.y });
+    const killed = bot.health.head <= 0 || bot.health.thorax <= 0;
+    this.botHitEvents.push({ id: bot.id, x: bot.x, y: bot.y, shooterId: player.id, killed });
 
-    if (bot.health.head <= 0 || bot.health.thorax <= 0) {
+    if (killed) {
       this._killBotAndDropCorpse(bot);
       player.scavKills = (player.scavKills || 0) + 1;
     } else {

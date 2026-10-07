@@ -88,6 +88,7 @@ class GameClient {
     this._squadListBuffer = [];
     this._scavListBuffer = [];
     this.botAudioRange = 700;
+    this.lastHitConfirmTime = 0;
 
     this.bullets = [];
     this.grenades = [];
@@ -150,7 +151,8 @@ class GameClient {
       mapCards: {
         factory: document.getElementById('card-map-factory'),
         warehouse: document.getElementById('card-map-warehouse'),
-        bunker: document.getElementById('card-map-bunker')
+        bunker: document.getElementById('card-map-bunker'),
+        streets: document.getElementById('card-map-streets')
       },
       raidTimer: document.getElementById('hud-raid-timer'),
       roomCodeBadge: document.getElementById('hud-room-code'),
@@ -1234,6 +1236,16 @@ class GameClient {
 
     for (const hit of snapshot.botHits || []) {
       this.renderer.emitBloodParticles(hit.x, hit.y);
+      const hitTime = performance.now();
+      const hitBot = this.scavBots.get(hit.id);
+      if (hitBot) hitBot.hitFlashUntil = hitTime + 130;
+      if (hit.shooterId === this.localPlayer.id) {
+        this.renderer.triggerHitMarker(Boolean(hit.killed), hit.x, hit.y);
+        if (hitTime - this.lastHitConfirmTime >= 100) {
+          audioEngine.playHitConfirm(Boolean(hit.killed));
+          this.lastHitConfirmTime = hitTime;
+        }
+      }
     }
 
     if (snapshot.grenades) {

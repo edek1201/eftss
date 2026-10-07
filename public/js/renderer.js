@@ -43,6 +43,8 @@ export class TacticalRenderer {
     this.zoom = 1.5;
     this.bloodParticles = [];
     this.lastParticleUpdate = 0;
+    this.hitMarkerUntil = 0;
+    this.hitMarkerIsKill = false;
 
     this.fogCanvas = document.createElement('canvas');
     this.fogCtx = this.fogCanvas.getContext('2d');
@@ -252,6 +254,20 @@ export class TacticalRenderer {
             sCtx.fillRect(x + ts - 9, y, 3, ts);
             break;
           }
+          case TILE_TYPES.ROAD_ASPHALT: {
+            sCtx.fillStyle = ((tx + ty) % 2 === 0) ? '#20252a' : '#1d2227';
+            sCtx.fillRect(x, y, ts, ts);
+            sCtx.strokeStyle = '#292f35';
+            sCtx.lineWidth = 0.8;
+            sCtx.strokeRect(x, y, ts, ts);
+            sCtx.fillStyle = '#b39b59';
+            if (tx === 50 || tx === 97) {
+              if (ty % 2 === 0) sCtx.fillRect(x + ts / 2 - 1, y + 4, 2, 12);
+            } else if (ty === 50 || ty === 97) {
+              if (tx % 2 === 0) sCtx.fillRect(x + 4, y + ts / 2 - 1, 12, 2);
+            }
+            break;
+          }
           default: {
             sCtx.fillStyle = '#12161d';
             sCtx.fillRect(x, y, ts, ts);
@@ -312,6 +328,13 @@ export class TacticalRenderer {
         size: 1.5 + Math.random() * 2.5
       });
     }
+  }
+
+  triggerHitMarker(killed = false, worldX = this.camera.x, worldY = this.camera.y) {
+    this.hitMarkerUntil = performance.now() + 240;
+    this.hitMarkerIsKill = killed;
+    this.hitMarkerX = worldX;
+    this.hitMarkerY = worldY;
   }
 
   _renderBloodParticles(ctx) {
@@ -536,6 +559,7 @@ export class TacticalRenderer {
       this._renderInteractionPrompt(ctx, viewW, viewH, promptContainer);
     }
 
+    this._renderHitMarker(ctx, viewW, viewH);
     this._renderTacticalVignette(ctx, viewW, viewH, localPlayer?.isAiming);
   }
 
@@ -760,6 +784,21 @@ export class TacticalRenderer {
             ctx.moveTo(x, y + 20);
             ctx.lineTo(x + ts, y + 20);
             ctx.stroke();
+            break;
+          }
+
+          case TILE_TYPES.ROAD_ASPHALT: {
+            ctx.fillStyle = ((tx + ty) % 2 === 0) ? '#20252a' : '#1d2227';
+            ctx.fillRect(x, y, ts, ts);
+            ctx.strokeStyle = '#292f35';
+            ctx.lineWidth = 0.8;
+            ctx.strokeRect(x, y, ts, ts);
+            ctx.fillStyle = '#b39b59';
+            if (tx === 50 || tx === 97) {
+              if (ty % 2 === 0) ctx.fillRect(x + ts / 2 - 1, y + 4, 2, 12);
+            } else if (ty === 50 || ty === 97) {
+              if (tx % 2 === 0) ctx.fillRect(x + 4, y + ts / 2 - 1, 12, 2);
+            }
             break;
           }
 
@@ -1380,6 +1419,13 @@ export class TacticalRenderer {
       ctx.fillRect(-2, -7.5, 3.5, 15);
     }
 
+    if (bot.hitFlashUntil > performance.now()) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(-3, 0, 12, 15, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // Alert indicator cone (if in ATTACK or COMBAT)
     if (bot.state === 'ATTACK' || bot.state === 'COMBAT') {
       ctx.strokeStyle = bot.isBoss ? 'rgba(241, 196, 15, 0.45)' : 'rgba(231, 76, 60, 0.35)';
@@ -1944,6 +1990,32 @@ export class TacticalRenderer {
       ctx.fillRect(0, 0, w, h);
       this.bloodFlashAlpha *= 0.88; // Smooth fade out
     }
+  }
+
+  _renderHitMarker(ctx, w, h) {
+    const remaining = this.hitMarkerUntil - performance.now();
+    if (remaining <= 0) return;
+    const x = w / 2 + this.camera.shakeX + (this.hitMarkerX - this.camera.x) * this.zoom;
+    const y = h / 2 + this.camera.shakeY + (this.hitMarkerY - this.camera.y) * this.zoom;
+    if (x < 0 || x > w || y < 0 || y > h) return;
+
+    const alpha = Math.min(1, remaining / 80);
+    const color = this.hitMarkerIsKill ? '#ffb347' : '#f4f1e8';
+    const radius = this.hitMarkerIsKill ? 12 : 9;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = this.hitMarkerIsKill ? 2.5 : 2;
+    ctx.lineCap = 'round';
+    for (const direction of [-1, 1]) {
+      for (const vertical of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(x + direction * 3, y + vertical * 3);
+        ctx.lineTo(x + direction * radius, y + vertical * radius);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
   }
 
   _renderGrenadeEntity(ctx, g) {
