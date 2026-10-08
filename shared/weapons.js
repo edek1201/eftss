@@ -591,8 +591,104 @@ export const WEAPON_REGISTRY = {
     compatibleMags: ['mag_1911_7'],
     defaultMag: 'mag_1911_7',
     compatibleAmmo: ['ammo_45ap']
+  },
+  ak12: {
+    id: 'ak12', name: 'AK-12 5.45x39 Assault Rifle', type: 'weapon', category: 'assault_rifle',
+    caliber: '5.45x39mm', ammoType: '5.45x39mm BT', magSize: 30, rpm: 700,
+    fireModes: ['SEMI', 'AUTO'], defaultFireMode: 'AUTO', bulletSpeed: 900, damage: 48,
+    spread: 0.014, bloom: 0.025, recoil: 4.2, soundType: 'ak74m', w: 5, h: 2,
+    color: '#8a9a7b', tag: 'RIFLE', sub: 'Modern 5.45x39 Service Rifle', rarity: 'rare', price: 145000,
+    compatibleMags: ['mag_ak12_30', 'mag_ak74_30'], defaultMag: 'mag_ak12_30',
+    compatibleAmmo: ['ammo_bt', 'ammo_545_ps']
+  },
+  aug: {
+    id: 'aug', name: 'Steyr AUG A3 5.56x45', type: 'weapon', category: 'assault_rifle',
+    caliber: '5.56x45mm NATO', ammoType: '5.56x45mm M855', magSize: 30, rpm: 750,
+    fireModes: ['SEMI', 'AUTO'], defaultFireMode: 'AUTO', bulletSpeed: 930, damage: 42,
+    spread: 0.011, bloom: 0.024, recoil: 3.7, soundType: 'm4a1', w: 5, h: 2,
+    color: '#71805a', tag: 'RIFLE', sub: '5.56x45 Bullpup', rarity: 'rare', price: 155000,
+    compatibleMags: ['mag_aug_30', 'mag_stanag_30'], defaultMag: 'mag_aug_30',
+    compatibleAmmo: ['ammo_m855', 'ammo_m855a1']
+  },
+  g36: {
+    id: 'g36', name: 'HK G36 5.56x45', type: 'weapon', category: 'assault_rifle',
+    caliber: '5.56x45mm NATO', ammoType: '5.56x45mm M855', magSize: 30, rpm: 750,
+    fireModes: ['SEMI', 'AUTO'], defaultFireMode: 'AUTO', bulletSpeed: 925, damage: 42,
+    spread: 0.013, bloom: 0.025, recoil: 3.9, soundType: 'm4a1', w: 5, h: 2,
+    color: '#626c55', tag: 'RIFLE', sub: '5.56x45 Combat Rifle', rarity: 'tactical', price: 98000,
+    compatibleMags: ['mag_g36_30', 'mag_stanag_30'], defaultMag: 'mag_g36_30',
+    compatibleAmmo: ['ammo_m855', 'ammo_m855a1']
+  },
+  sr25: {
+    id: 'sr25', name: 'Knight’s Armament SR-25 7.62x51', type: 'weapon', category: 'marksman',
+    caliber: '7.62x51mm NATO', ammoType: '7.62x51mm M80', magSize: 20, rpm: 700,
+    fireModes: ['SEMI'], defaultFireMode: 'SEMI', bulletSpeed: 900, damage: 78,
+    spread: 0.005, bloom: 0.045, recoil: 7.4, soundType: 'm4a1', w: 6, h: 2,
+    color: '#535c4e', tag: 'MARKSMAN', sub: 'Semi-Automatic 7.62x51 DMR', rarity: 'gold', price: 265000,
+    compatibleMags: ['mag_sr25_20', 'mag_scar_20'], defaultMag: 'mag_sr25_20',
+    compatibleAmmo: ['ammo_m80', 'ammo_m61']
+  },
+  rfb: {
+    id: 'rfb', name: 'Kel-Tec RFB 7.62x51', type: 'weapon', category: 'marksman',
+    caliber: '7.62x51mm NATO', ammoType: '7.62x51mm M80', magSize: 20, rpm: 600,
+    fireModes: ['SEMI'], defaultFireMode: 'SEMI', bulletSpeed: 850, damage: 74,
+    spread: 0.009, bloom: 0.05, recoil: 6.8, soundType: 'm4a1', w: 5, h: 2,
+    color: '#806447', tag: 'MARKSMAN', sub: 'Compact 7.62x51 Bullpup DMR', rarity: 'rare', price: 178000,
+    compatibleMags: ['mag_scar_20'], defaultMag: 'mag_scar_20',
+    compatibleAmmo: ['ammo_m80', 'ammo_m61']
+  },
+  m700: {
+    id: 'm700', name: 'Remington M700 7.62x51 Bolt Action', type: 'weapon', category: 'sniper',
+    caliber: '7.62x51mm NATO', ammoType: '7.62x51mm M80', magSize: 5, rpm: 35,
+    fireModes: ['SEMI'], defaultFireMode: 'SEMI', bulletSpeed: 1200, damage: 104,
+    spread: 0.002, bloom: 0.065, recoil: 9.2, soundType: 'mosin', w: 6, h: 1,
+    color: '#76573a', tag: 'SNIPER', sub: '5-Round Internal Magazine', rarity: 'rare', price: 195000,
+    internalMag: true, compatibleMags: [], compatibleAmmo: ['ammo_m80', 'ammo_m61']
+  },
+  pp19: {
+    id: 'pp19', name: 'PP-19-01 Vityaz 9x19', type: 'weapon', category: 'smg',
+    caliber: '9x19mm', ammoType: '9x19mm PST gzh', magSize: 30, rpm: 700,
+    fireModes: ['SEMI', 'AUTO'], defaultFireMode: 'AUTO', bulletSpeed: 390, damage: 34,
+    spread: 0.017, bloom: 0.018, recoil: 2.8, soundType: 'mp5', w: 4, h: 2,
+    color: '#4c514a', tag: 'SMG', sub: 'Closed-Bolt 9x19 Submachine Gun', rarity: 'tactical', price: 56000,
+    compatibleMags: ['mag_pp19_30'], defaultMag: 'mag_pp19_30',
+    compatibleAmmo: ['ammo_pst', 'ammo_9x19_quakemaker']
+  },
+  mp9: {
+    id: 'mp9', name: 'B&T MP9-N 9x19', type: 'weapon', category: 'smg',
+    caliber: '9x19mm', ammoType: '9x19mm PST gzh', magSize: 30, rpm: 1100,
+    fireModes: ['SEMI', 'AUTO'], defaultFireMode: 'AUTO', bulletSpeed: 400, damage: 34,
+    spread: 0.019, bloom: 0.03, recoil: 3.5, soundType: 'smg_fast', w: 3, h: 2,
+    color: '#50565a', tag: 'SMG', sub: 'Compact High-Cyclic 9x19', rarity: 'rare', price: 132000,
+    compatibleMags: ['mag_mp9_30'], defaultMag: 'mag_mp9_30',
+    compatibleAmmo: ['ammo_pst', 'ammo_9x19_quakemaker']
+  },
+  five_seven: {
+    id: 'five_seven', name: 'FN Five-seveN 5.7x28', type: 'weapon', category: 'pistol',
+    caliber: '5.7x28mm', ammoType: '5.7x28mm SS190', magSize: 20, rpm: 450,
+    fireModes: ['SEMI'], defaultFireMode: 'SEMI', bulletSpeed: 650, damage: 38,
+    spread: 0.014, bloom: 0.024, recoil: 2.9, soundType: 'pistol', w: 2, h: 1,
+    color: '#727b83', tag: 'SIDEARM', sub: 'High-Capacity 5.7x28 Service Pistol', rarity: 'rare', price: 98000,
+    compatibleMags: ['mag_fiveseven_20'], defaultMag: 'mag_fiveseven_20',
+    compatibleAmmo: ['ammo_ss190', 'ammo_57l1']
+  },
+  m870: {
+    id: 'm870', name: 'Remington 870 12/70 Pump Shotgun', type: 'weapon', category: 'shotgun',
+    caliber: '12/70 Gauge', ammoType: '12/70 7mm Buckshot', magSize: 6, rpm: 75,
+    fireModes: ['SEMI'], defaultFireMode: 'SEMI', bulletSpeed: 430, damage: 74,
+    spread: 0.052, bloom: 0.07, recoil: 7.6, soundType: 'shotgun', w: 5, h: 2,
+    color: '#76563c', tag: 'SHOTGUN', sub: '6-Round Pump-Action Tube', rarity: 'tactical', price: 42000,
+    internalMag: true, compatibleMags: [], compatibleAmmo: ['ammo_12ga', 'ammo_12ga_slug', 'ammo_12ga_flechette']
   }
 };
+
+for (const weapon of Object.values(WEAPON_REGISTRY)) {
+  if (weapon.type === 'melee') continue;
+  weapon.cyclicRateMs = Math.round(60000 / weapon.rpm);
+  weapon.compatibleMods = weapon.category === 'pistol'
+    ? ['optic', 'muzzle', 'laser']
+    : ['optic', 'muzzle', 'grip', 'laser'];
+}
 
 /**
  * Universal Item Database for In-Raid Containers, Traders, and Stash
@@ -1234,10 +1330,13 @@ export const ITEM_CATALOG = {
     name: '5.56x45 Sound Suppressor',
     type: 'weapon_mod',
     category: 'suppressor',
+    modSlot: 'muzzle',
+    compatibleWeapons: ['m4a1', 'mdr', 'aug', 'g36'],
+    effects: { soundType: 'val_suppressed', recoilMultiplier: 0.92 },
     w: 2, h: 1,
     color: '#596568',
     tag: 'MOD',
-    sub: 'Unfitted 5.56 suppressor',
+    sub: 'Muzzle: quieter shots, slightly lower recoil',
     rarity: 'rare',
     price: 88000
   },
@@ -1412,6 +1511,130 @@ export const ITEM_CATALOG = {
   }
 };
 
+Object.assign(ITEM_CATALOG, {
+  ammo_545_ps: {
+    id: 'ammo_545_ps', name: '5.45x39 PS GS (60)', type: 'ammo', category: 'ammo', caliber: '5.45x39mm',
+    count: 60, maxCount: 60, damageMultiplier: 1.02, armorPenetration: 0.3, w: 1, h: 1, color: '#a9825b',
+    tag: 'AMMO', sub: 'PS: heavier damage, modest armor penetration', rarity: 'common', price: 11000
+  },
+  ammo_m855: {
+    id: 'ammo_m855', name: '5.56x45 M855 (60)', type: 'ammo', category: 'ammo', caliber: '5.56x45mm NATO',
+    count: 60, maxCount: 60, damageMultiplier: 0.94, armorPenetration: 0.42, w: 1, h: 1, color: '#829566',
+    tag: 'AMMO', sub: 'M855: balanced service ammunition', rarity: 'common', price: 13000
+  },
+  ammo_m61: {
+    id: 'ammo_m61', name: '7.62x51 M61 AP (20)', type: 'ammo', category: 'ammo', caliber: '7.62x51mm NATO',
+    count: 20, maxCount: 20, damageMultiplier: 0.9, armorPenetration: 0.88, w: 1, h: 1, color: '#7f987c',
+    tag: 'AMMO', sub: 'M61: reduced flesh damage, high armor penetration', rarity: 'gold', price: 42000
+  },
+  ammo_9x19_quakemaker: {
+    id: 'ammo_9x19_quakemaker', name: '9x19 QuakeMaker HP (50)', type: 'ammo', category: 'ammo', caliber: '9x19mm',
+    count: 50, maxCount: 50, damageMultiplier: 1.18, armorPenetration: 0.12, w: 1, h: 1, color: '#ab7459',
+    tag: 'AMMO', sub: 'QuakeMaker: high flesh damage, poor armor penetration', rarity: 'tactical', price: 14000
+  },
+  ammo_57l1: {
+    id: 'ammo_57l1', name: '5.7x28 L191 Tracer (50)', type: 'ammo', category: 'ammo', caliber: '5.7x28mm',
+    count: 50, maxCount: 50, damageMultiplier: 0.9, armorPenetration: 0.5, w: 1, h: 1, color: '#c2a95c',
+    tag: 'AMMO', sub: 'L191: lower damage, visible tracer, moderate penetration', rarity: 'rare', price: 21000
+  },
+  ammo_12ga_slug: {
+    id: 'ammo_12ga_slug', name: '12/70 AP-20 Slug (20)', type: 'ammo', category: 'ammo', caliber: '12/70 Gauge',
+    count: 20, maxCount: 20, damageMultiplier: 1.35, armorPenetration: 0.58, w: 1, h: 1, color: '#9c6652',
+    tag: 'AMMO', sub: 'AP-20: single projectile, high damage and penetration', rarity: 'rare', price: 24000
+  },
+  ammo_12ga_flechette: {
+    id: 'ammo_12ga_flechette', name: '12/70 Flechette (20)', type: 'ammo', category: 'ammo', caliber: '12/70 Gauge',
+    count: 20, maxCount: 20, damageMultiplier: 0.78, armorPenetration: 0.7, w: 1, h: 1, color: '#778768',
+    tag: 'AMMO', sub: 'Flechette: lighter darts with improved armor penetration', rarity: 'rare', price: 18500
+  },
+  mag_ak12_30: {
+    id: 'mag_ak12_30', name: 'AK-12 30-rnd 5.45x39', type: 'magazine', category: 'magazine', caliber: '5.45x39mm',
+    ammo: 30, maxAmmo: 30, w: 1, h: 2, color: '#68785e', tag: 'MAG 5.45', sub: '30-round AK-12 magazine', rarity: 'tactical', price: 7500
+  },
+  mag_aug_30: {
+    id: 'mag_aug_30', name: 'AUG 30-rnd 5.56x45', type: 'magazine', category: 'magazine', caliber: '5.56x45mm NATO',
+    ammo: 30, maxAmmo: 30, w: 1, h: 2, color: '#71805a', tag: 'MAG 5.56', sub: '30-round AUG magazine', rarity: 'tactical', price: 8500
+  },
+  mag_g36_30: {
+    id: 'mag_g36_30', name: 'G36 30-rnd 5.56x45', type: 'magazine', category: 'magazine', caliber: '5.56x45mm NATO',
+    ammo: 30, maxAmmo: 30, w: 1, h: 2, color: '#626c55', tag: 'MAG 5.56', sub: '30-round G36 magazine', rarity: 'tactical', price: 8200
+  },
+  mag_sr25_20: {
+    id: 'mag_sr25_20', name: 'SR-25 20-rnd 7.62x51', type: 'magazine', category: 'magazine', caliber: '7.62x51mm NATO',
+    ammo: 20, maxAmmo: 20, w: 1, h: 2, color: '#535c4e', tag: 'MAG 7.62', sub: '20-round SR-25 magazine', rarity: 'rare', price: 19000
+  },
+  mag_pp19_30: {
+    id: 'mag_pp19_30', name: 'PP-19 30-rnd 9x19', type: 'magazine', category: 'magazine', caliber: '9x19mm',
+    ammo: 30, maxAmmo: 30, w: 1, h: 2, color: '#4c514a', tag: 'MAG 9mm', sub: '30-round Vityaz magazine', rarity: 'tactical', price: 6500
+  },
+  mag_mp9_30: {
+    id: 'mag_mp9_30', name: 'MP9 30-rnd 9x19', type: 'magazine', category: 'magazine', caliber: '9x19mm',
+    ammo: 30, maxAmmo: 30, w: 1, h: 2, color: '#50565a', tag: 'MAG 9mm', sub: '30-round MP9 magazine', rarity: 'rare', price: 10500
+  },
+  mag_fiveseven_20: {
+    id: 'mag_fiveseven_20', name: 'Five-seveN 20-rnd 5.7x28', type: 'magazine', category: 'magazine', caliber: '5.7x28mm',
+    ammo: 20, maxAmmo: 20, w: 1, h: 1, color: '#727b83', tag: 'MAG 5.7', sub: '20-round 5.7x28 magazine', rarity: 'rare', price: 11000
+  },
+  optic_rds: {
+    id: 'optic_rds', name: 'Compact Reflex Sight', type: 'weapon_mod', category: 'optic', modSlot: 'optic',
+    compatibleCategories: ['assault_rifle', 'marksman', 'sniper', 'smg', 'pistol'],
+    effects: { spreadMultiplier: 0.92 }, w: 1, h: 1, color: '#788d81', tag: 'OPTIC',
+    sub: 'Optic: slightly steadier aim', rarity: 'tactical', price: 32000
+  },
+  foregrip_vertical: {
+    id: 'foregrip_vertical', name: 'Vertical Foregrip', type: 'weapon_mod', category: 'grip', modSlot: 'grip',
+    compatibleCategories: ['assault_rifle', 'marksman', 'sniper', 'smg'],
+    effects: { recoilMultiplier: 0.78, bloomMultiplier: 0.92 }, w: 1, h: 1, color: '#5b655c', tag: 'GRIP',
+    sub: 'Grip: lower recoil and firing bloom', rarity: 'rare', price: 28500
+  },
+  suppressor_762: {
+    id: 'suppressor_762', name: '7.62 Rifle Sound Suppressor', type: 'weapon_mod', category: 'suppressor', modSlot: 'muzzle',
+    compatibleWeapons: ['akm', 'scarh', 'sr25', 'rfb', 'm700'],
+    effects: { soundType: 'val_suppressed', recoilMultiplier: 0.92 }, w: 2, h: 1, color: '#596568', tag: 'MUZZLE',
+    sub: 'Muzzle: quieter shots and slightly lower recoil', rarity: 'rare', price: 78000
+  },
+  suppressor_9: {
+    id: 'suppressor_9', name: '9mm Sound Suppressor', type: 'weapon_mod', category: 'suppressor', modSlot: 'muzzle',
+    compatibleWeapons: ['mp5', 'mpx', 'pp19', 'mp9', 'glock17', 'vector'],
+    effects: { soundType: 'val_suppressed', recoilMultiplier: 0.94 }, w: 2, h: 1, color: '#4d6264', tag: 'MUZZLE',
+    sub: 'Muzzle: quieter shots and slightly lower recoil', rarity: 'rare', price: 68000
+  },
+  tactical_laser_mod: {
+    id: 'tactical_laser_mod', name: 'Pistol/Rifle Laser Module', type: 'weapon_mod', category: 'laser', modSlot: 'laser',
+    compatibleCategories: ['assault_rifle', 'marksman', 'sniper', 'smg', 'pistol'],
+    effects: { hipfireSpreadMultiplier: 0.72 }, w: 1, h: 1, color: '#6b9868', tag: 'LASER',
+    sub: 'Laser: tighter hip-fire spread', rarity: 'tactical', price: 24000
+  }
+});
+
+for (const item of Object.values(ITEM_CATALOG)) {
+  if (item.type === 'ammo') {
+    item.damageMultiplier ??= 0.95;
+    item.armorPenetration ??= 0.25;
+  }
+}
+
+ITEM_CATALOG.ammo_m855a1.damageMultiplier = 0.96;
+ITEM_CATALOG.ammo_m855a1.armorPenetration = 0.68;
+ITEM_CATALOG.ammo_bt.damageMultiplier = 0.96;
+ITEM_CATALOG.ammo_bt.armorPenetration = 0.62;
+ITEM_CATALOG.ammo_sp6.damageMultiplier = 1.02;
+ITEM_CATALOG.ammo_sp6.armorPenetration = 0.72;
+ITEM_CATALOG.ammo_lps.damageMultiplier = 1.05;
+ITEM_CATALOG.ammo_lps.armorPenetration = 0.6;
+ITEM_CATALOG.ammo_ps.damageMultiplier = 1.04;
+ITEM_CATALOG.ammo_ps.armorPenetration = 0.34;
+ITEM_CATALOG.ammo_m80.damageMultiplier = 0.98;
+ITEM_CATALOG.ammo_m80.armorPenetration = 0.64;
+ITEM_CATALOG.ammo_46fmj.damageMultiplier = 0.94;
+ITEM_CATALOG.ammo_46fmj.armorPenetration = 0.38;
+ITEM_CATALOG.ammo_ss190.damageMultiplier = 0.94;
+ITEM_CATALOG.ammo_ss190.armorPenetration = 0.56;
+ITEM_CATALOG.ammo_45ap.damageMultiplier = 0.98;
+ITEM_CATALOG.ammo_45ap.armorPenetration = 0.38;
+ITEM_CATALOG.ammo_12ga.damageMultiplier = 1;
+ITEM_CATALOG.ammo_12ga.armorPenetration = 0.16;
+
 export function isWeaponItem(item) {
   if (!item) return false;
   if (item.type === 'weapon') return true;
@@ -1462,9 +1685,10 @@ export function isCompatibleMagazine(weapon, magItem) {
 export function isCompatibleAmmo(target, ammoItem) {
   if (!target || !ammoItem) return false;
   let targetCaliber = target.caliber;
+  let weaponConfig = null;
   if (!targetCaliber) {
-    const wepCfg = getWeaponConfig(target.weaponType || target.type || target.id || target);
-    if (wepCfg) targetCaliber = wepCfg.caliber;
+    weaponConfig = getWeaponConfig(target);
+    if (weaponConfig) targetCaliber = weaponConfig.caliber;
   }
   const ammoCaliber = ammoItem.caliber;
   if (!targetCaliber || !ammoCaliber) return false;
@@ -1472,7 +1696,44 @@ export function isCompatibleAmmo(target, ammoItem) {
   const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
   const c1 = norm(targetCaliber);
   const c2 = norm(ammoCaliber);
+  if (weaponConfig?.compatibleAmmo?.includes(ammoItem.itemKey || ammoItem.id)) return true;
   return c1.includes(c2.slice(0, 4)) || c2.includes(c1.slice(0, 4));
+}
+
+export function isCompatibleAttachment(weapon, attachment) {
+  const weaponConfig = getWeaponConfig(weapon);
+  if (!weaponConfig || !attachment || attachment.type !== 'weapon_mod' || !attachment.modSlot) return false;
+  if (!weaponConfig.compatibleMods?.includes(attachment.modSlot)) return false;
+  const weaponKey = weaponConfig.id;
+  if (attachment.compatibleWeapons) return attachment.compatibleWeapons.includes(weaponKey);
+  if (attachment.compatibleCategories) return attachment.compatibleCategories.includes(weaponConfig.category);
+  return false;
+}
+
+export function getWeaponStats(weapon, attachments = []) {
+  const config = getWeaponConfig(weapon);
+  if (!config) return null;
+
+  const stats = { ...config };
+  let spreadMultiplier = 1;
+  let bloomMultiplier = 1;
+  let recoilMultiplier = 1;
+  let hipfireSpreadMultiplier = 1;
+  for (const attachment of attachments) {
+    const mod = typeof attachment === 'string' ? ITEM_CATALOG[attachment] : attachment;
+    if (!isCompatibleAttachment(config, mod)) continue;
+    const effects = mod.effects || {};
+    spreadMultiplier *= effects.spreadMultiplier || 1;
+    bloomMultiplier *= effects.bloomMultiplier || 1;
+    recoilMultiplier *= effects.recoilMultiplier || 1;
+    hipfireSpreadMultiplier *= effects.hipfireSpreadMultiplier || 1;
+    if (effects.soundType) stats.soundType = effects.soundType;
+  }
+  stats.spread *= spreadMultiplier;
+  stats.bloom *= bloomMultiplier;
+  stats.recoil *= recoilMultiplier;
+  stats.hipfireSpreadMultiplier = hipfireSpreadMultiplier;
+  return stats;
 }
 
 export function getWeaponConfig(key) {

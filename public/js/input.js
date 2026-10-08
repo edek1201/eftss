@@ -99,11 +99,8 @@ export class InputController {
 
       // B: Working Fire Selector Switch (SEMI vs FULL-AUTO)
       if (e.code === 'KeyB' && !e.repeat) {
-        this.fireMode = (this.fireMode === 'SEMI') ? 'AUTO' : 'SEMI';
-        audioEngine.playFireSelector();
-        if (this.onFireModeChange) {
-          this.onFireModeChange(this.fireMode);
-        }
+        const requestedMode = (this.fireMode === 'SEMI') ? 'AUTO' : 'SEMI';
+        if (this.onFireModeChange) this.onFireModeChange(requestedMode);
       }
 
       // R: Tactical Reload & Double-Tap R Fast Reload

@@ -261,10 +261,9 @@ export class TacticalRenderer {
             sCtx.lineWidth = 0.8;
             sCtx.strokeRect(x, y, ts, ts);
             sCtx.fillStyle = '#b39b59';
-            if (tx === 50 || tx === 97) {
-              if (ty % 2 === 0) sCtx.fillRect(x + ts / 2 - 1, y + 4, 2, 12);
-            } else if (ty === 50 || ty === 97) {
-              if (tx % 2 === 0) sCtx.fillRect(x + 4, y + ts / 2 - 1, 12, 2);
+            if (this.map.mapId === 'streets') {
+              if ([50, 71, 97].includes(tx) && ty % 4 < 2) sCtx.fillRect(x + ts / 2 - 1, y + 4, 2, 12);
+              if ([50, 71, 97].includes(ty) && tx % 4 < 2) sCtx.fillRect(x + 4, y + ts / 2 - 1, 12, 2);
             }
             break;
           }
@@ -273,7 +272,55 @@ export class TacticalRenderer {
             sCtx.fillRect(x, y, ts, ts);
           }
         }
+        this._drawSurfaceDetails(sCtx, x, y, type, tx, ty);
       }
+    }
+  }
+
+  _drawSurfaceDetails(ctx, x, y, type, tx, ty) {
+    let seed = (Math.imul(tx + 1, 73856093) ^ Math.imul(ty + 1, 19349663)) >>> 0;
+    seed ^= this.map.mapId === 'streets' ? 0x5f3759df : this.map.mapId === 'bunker' ? 0x27d4eb2d : 0x165667b1;
+    const variation = seed % 100;
+    const ts = this.tileSize;
+
+    if (type === TILE_TYPES.FLOOR_CONCRETE && variation < 15) {
+      ctx.fillStyle = variation < 4 ? 'rgba(9, 13, 14, 0.3)' : 'rgba(111, 101, 78, 0.2)';
+      ctx.beginPath();
+      ctx.ellipse(x + 6 + (seed >>> 8) % 20, y + 6 + (seed >>> 16) % 20, 2 + variation % 3, 1.5, seed % 6, 0, Math.PI * 2);
+      ctx.fill();
+      if (variation < 5) {
+        ctx.strokeStyle = 'rgba(5, 8, 10, 0.48)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + 7, y + 9);
+        ctx.lineTo(x + 12, y + 14);
+        ctx.lineTo(x + 10, y + 20);
+        ctx.stroke();
+      }
+    } else if (type === TILE_TYPES.FLOOR_OFFICE && variation < 17) {
+      ctx.save();
+      ctx.translate(x + 7 + (seed >>> 8) % 15, y + 7 + (seed >>> 16) % 15);
+      ctx.rotate((seed % 17) / 10);
+      ctx.fillStyle = variation < 5 ? 'rgba(158, 133, 91, 0.34)' : 'rgba(11, 15, 20, 0.3)';
+      ctx.fillRect(-3, -2, 7, 4);
+      ctx.strokeStyle = 'rgba(175, 157, 120, 0.2)';
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(-2, 0);
+      ctx.lineTo(2, 0);
+      ctx.stroke();
+      ctx.restore();
+    } else if (type === TILE_TYPES.ROAD_ASPHALT && variation < 13) {
+      ctx.strokeStyle = 'rgba(8, 12, 15, 0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x + 5 + (seed >>> 8) % 9, y + 8);
+      ctx.lineTo(x + 12 + (seed >>> 16) % 8, y + 15);
+      ctx.lineTo(x + 10 + (seed >>> 4) % 12, y + 24);
+      ctx.stroke();
+    } else if (type === TILE_TYPES.METAL_GRATE && variation < 12) {
+      ctx.fillStyle = 'rgba(130, 93, 54, 0.24)';
+      ctx.fillRect(x + (seed >>> 8) % 24, y + (seed >>> 16) % 24, 5, 2);
     }
   }
 
@@ -794,10 +841,9 @@ export class TacticalRenderer {
             ctx.lineWidth = 0.8;
             ctx.strokeRect(x, y, ts, ts);
             ctx.fillStyle = '#b39b59';
-            if (tx === 50 || tx === 97) {
-              if (ty % 2 === 0) ctx.fillRect(x + ts / 2 - 1, y + 4, 2, 12);
-            } else if (ty === 50 || ty === 97) {
-              if (tx % 2 === 0) ctx.fillRect(x + 4, y + ts / 2 - 1, 12, 2);
+            if (this.map.mapId === 'streets') {
+              if ([50, 71, 97].includes(tx) && ty % 4 < 2) ctx.fillRect(x + ts / 2 - 1, y + 4, 2, 12);
+              if ([50, 71, 97].includes(ty) && tx % 4 < 2) ctx.fillRect(x + 4, y + ts / 2 - 1, 12, 2);
             }
             break;
           }
@@ -1219,18 +1265,21 @@ export class TacticalRenderer {
     ctx.fill();
 
     if (bot.isBoss) {
-      // ===== BOSS KILLA (HEAVY CLASS 5 KORUND + ADIDAS STRIPES) =====
-      // Black Adidas Tracksuit Torso with White Stripes on Shoulders
+      const bossType = bot.bossType || 'killa';
+      const bossUniform = bossType === 'tagilla' ? '#6d3029'
+        : bossType === 'shturman' ? '#3e4934'
+          : bossType === 'reshala' ? '#4b4035'
+            : '#111417';
       ctx.beginPath();
       ctx.ellipse(-3, 0, 12, 16, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#111417';
+      ctx.fillStyle = bossUniform;
       ctx.fill();
       ctx.strokeStyle = '#050708';
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
       // White Adidas 3-stripes on shoulders
-      ctx.strokeStyle = '#ffffff';
+      ctx.strokeStyle = bossType === 'killa' ? '#ffffff' : 'rgba(212, 196, 157, 0.78)';
       ctx.lineWidth = 1;
       [-13, -11, -9].forEach(yOffset => {
         ctx.beginPath(); ctx.moveTo(-6, yOffset); ctx.lineTo(6, yOffset); ctx.stroke();
@@ -1445,11 +1494,12 @@ export class TacticalRenderer {
     ctx.translate(bot.x, bot.y - (bot.isBoss ? 28 : 20));
 
     if (bot.isBoss) {
-      // Boss Health Bar (870 HP)
+      // Boss health varies by archetype.
       const barW = 54;
       const barH = 5;
-      const curHp = Math.max(0, bot.hp || 870);
-      const hpPct = Math.min(1, curHp / 870);
+      const maxHp = bot.maxHp || 870;
+      const curHp = Math.max(0, bot.hp ?? maxHp);
+      const hpPct = Math.min(1, curHp / maxHp);
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
       ctx.fillRect(-barW / 2 - 1, -barH - 1, barW + 2, barH + 2);
@@ -1465,9 +1515,10 @@ export class TacticalRenderer {
       ctx.font = 'bold 10px Consolas, monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#000';
-      ctx.fillText(`KILLA [BOSS] ${Math.round(curHp)}/870`, 1, -8);
+      const bossLabel = (bot.name || 'SCAV BOSS').replace(/^BOSS\s+/i, '').toUpperCase();
+      ctx.fillText(`${bossLabel} [BOSS] ${Math.round(curHp)}/${maxHp}`, 1, -8);
       ctx.fillStyle = '#f1c40f';
-      ctx.fillText(`KILLA [BOSS] ${Math.round(curHp)}/870`, 0, -9);
+      ctx.fillText(`${bossLabel} [BOSS] ${Math.round(curHp)}/${maxHp}`, 0, -9);
     } else if (bot.isGuard) {
       const curHp = Math.max(0, bot.hp || 250);
       ctx.font = 'bold 9px Consolas, monospace';
