@@ -925,7 +925,7 @@ class GameClient {
       usableMags.sort((a, b) => (b.ammo || b.currentAmmo || 0) - (a.ammo || a.currentAmmo || 0));
       const newMag = usableMags[0];
 
-      if (!equippedWepItem || !this.inventory.swapWeaponMagazine(equippedWepItem, newMag)) {
+      if (!equippedWepItem || !this.inventory.swapWeaponMagazine(equippedWepItem, newMag, isFast)) {
         this._showTacticalAlert('UNABLE TO SWAP MAGAZINE', true);
         return;
       }
@@ -934,7 +934,6 @@ class GameClient {
       wep.ammoMax = equippedWepItem.ammoMax;
       wep.ammoTypeKey = equippedWepItem.ammoTypeKey;
 
-      audioEngine.playReload(isFast);
       this._updateWeaponHUD();
       this._showTacticalAlert(`MAG SWAP: ${newMag.name.split(' ')[0]} (${wep.ammoCur}/${wep.ammoMax})`);
       this.inventory._saveStashStateToProfile();

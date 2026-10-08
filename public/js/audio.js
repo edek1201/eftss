@@ -323,6 +323,41 @@ class TacticalAudioEngine {
     slapOsc.stop(insertTime + 0.06);
   }
 
+  playMagazineRoundLoad() {
+    if (!this.ensureContext()) return;
+    const now = this.ctx.currentTime;
+    const click = this.ctx.createOscillator();
+    click.type = 'triangle';
+    click.frequency.setValueAtTime(1850, now);
+    click.frequency.exponentialRampToValueAtTime(720, now + 0.035);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.11, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+    click.connect(gain);
+    gain.connect(this.ctx.destination);
+    click.start(now);
+    click.stop(now + 0.045);
+  }
+
+  playMagazineInsert(isFast = false) {
+    if (!this.ensureContext()) return;
+    const now = this.ctx.currentTime;
+    const insertTime = now + (isFast ? 0.08 : 0.16);
+    const click = this.ctx.createOscillator();
+    click.type = 'square';
+    click.frequency.setValueAtTime(520, insertTime);
+    click.frequency.exponentialRampToValueAtTime(170, insertTime + 0.075);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.22, insertTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, insertTime + 0.08);
+    click.connect(gain);
+    gain.connect(this.ctx.destination);
+    click.start(insertTime);
+    click.stop(insertTime + 0.08);
+  }
+
   playFootstep(stance = 'STAND', volumeScale = 1) {
     if (!this.ensureContext() || !this.noiseBuffer) return;
     const now = this.ctx.currentTime;
