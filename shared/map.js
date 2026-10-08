@@ -25,7 +25,7 @@ export const MAP_CONFIGS = {
     height: 80,
     tileSize: 32, // 2560 x 2560 px
     cqbTag: "HARDCORE CQB (80x80)",
-    scavCount: 12,
+    scavCount: 14,
     description: "Multi-level chemical manufacturing facility: 3-story office wing, reactor hall, catacombs, chemical tanks, and multiple extracts."
   },
   warehouse: {
@@ -35,7 +35,7 @@ export const MAP_CONFIGS = {
     height: 120,
     tileSize: 32, // 3840 x 3840 px
     cqbTag: "EXPANSIVE INDUSTRIAL (120x120)",
-    scavCount: 16,
+    scavCount: 18,
     description: "Massive industrial freight station: railway loading tracks, multi-story dorms, construction choke point, and warehouses."
   },
   bunker: {
@@ -45,7 +45,7 @@ export const MAP_CONFIGS = {
     height: 100,
     tileSize: 32, // 3200 x 3200 px
     cqbTag: "DEEP SUBTERRANEAN (100x100)",
-    scavCount: 14,
+    scavCount: 16,
     description: "Subterranean military bunker complex: blast doors, turbine halls, server vaults, D-2 tunnel, and hermetic door extract."
   },
   streets: {
@@ -55,7 +55,7 @@ export const MAP_CONFIGS = {
     height: 140,
     tileSize: 32,
     cqbTag: "URBAN COMBAT (140x140)",
-    scavCount: 18,
+    scavCount: 20,
     description: "Dense Norvinsk city blocks, apartment courtyards, a medical clinic, a central boulevard, and dangerous urban extracts."
   }
 };

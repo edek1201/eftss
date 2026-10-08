@@ -1124,6 +1124,26 @@ html, body {
   background: rgba(212, 163, 89, 0.35);
   color: #fff;
 }
+.item-magazine {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  z-index: 2;
+  max-width: calc(100% - 4px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 3px;
+  background: rgba(103, 55, 35, 0.92);
+  border: 1px solid rgba(222, 129, 83, 0.75);
+  color: #ffe0ca;
+  font: 7px Consolas, monospace;
+  cursor: pointer;
+}
+.item-magazine:hover {
+  background: rgba(156, 73, 42, 0.96);
+  color: #fff;
+}
 
 .inv-drag-ghost {
   position: fixed;

@@ -288,6 +288,31 @@ class GameClient {
   _initWeaponsFromProfile() {
     if (!this.profile) return;
 
+    const getLoadoutAmmo = (item, config) => {
+      const initialAmmo = item.ammoCur !== undefined ? item.ammoCur : config.magSize;
+      const ammoTypeKey = item.ammoTypeKey || config.defaultAmmoKey || config.compatibleAmmo?.[0];
+      if (!config.internalMag && config.defaultMag && !Object.hasOwn(item, 'insertedMagazine')) {
+        const magazine = ITEM_CATALOG[config.defaultMag];
+        item.insertedMagazine = magazine ? {
+          ...magazine,
+          id: `${item.id}_inserted_mag`,
+          itemKey: config.defaultMag,
+          ammo: initialAmmo,
+          currentAmmo: initialAmmo,
+          maxAmmo: magazine.maxAmmo || config.magSize,
+          loadedAmmoKey: ammoTypeKey
+        } : null;
+      }
+
+      const insertedMagazine = item.insertedMagazine || null;
+      return {
+        insertedMagazine,
+        ammoCur: insertedMagazine ? (insertedMagazine.ammo ?? insertedMagazine.currentAmmo ?? 0) : (config.internalMag ? initialAmmo : 0),
+        ammoMax: insertedMagazine?.maxAmmo || item.ammoMax || config.magSize,
+        ammoTypeKey: insertedMagazine?.loadedAmmoKey || ammoTypeKey
+      };
+    };
+
     // Detect equipped primary weapon (strictly from loadout, no fallback free gear!)
     const primaryItem = this.inventory.items.find(it => it.gridId === 'primaryWeapon');
     const primCfg = getWeaponConfig(primaryItem);
@@ -295,15 +320,15 @@ class GameClient {
     if (primCfg) {
       const primKey = Object.keys(WEAPON_REGISTRY).find(k => WEAPON_REGISTRY[k] === primCfg) || primCfg.name.toLowerCase();
       const primStats = getWeaponStats(primCfg, primaryItem.attachments) || primCfg;
-      const currentAmmo = (primaryItem.ammoCur !== undefined) ? primaryItem.ammoCur : primCfg.magSize;
-      const maxAmmo = (primaryItem.ammoMax !== undefined) ? primaryItem.ammoMax : primCfg.magSize;
+      const ammoState = getLoadoutAmmo(primaryItem, primCfg);
       this.weapons[1] = {
         type: primKey,
         config: primStats,
         item: primaryItem,
-        ammoCur: currentAmmo,
-        ammoMax: maxAmmo,
-        ammoTypeKey: primaryItem.ammoTypeKey || primCfg.defaultAmmoKey || primCfg.compatibleAmmo?.[0]
+        insertedMagazine: ammoState.insertedMagazine,
+        ammoCur: ammoState.ammoCur,
+        ammoMax: ammoState.ammoMax,
+        ammoTypeKey: ammoState.ammoTypeKey
       };
       if (this.dom.lobbyPrimaryName) this.dom.lobbyPrimaryName.textContent = primCfg.name;
       if (this.dom.slot1Name) this.dom.slot1Name.textContent = primKey.toUpperCase();
@@ -320,15 +345,15 @@ class GameClient {
     if (secCfg) {
       const secKey = Object.keys(WEAPON_REGISTRY).find(k => WEAPON_REGISTRY[k] === secCfg) || secCfg.name.toLowerCase();
       const secStats = getWeaponStats(secCfg, secondaryItem.attachments) || secCfg;
-      const currentAmmo = (secondaryItem.ammoCur !== undefined) ? secondaryItem.ammoCur : secCfg.magSize;
-      const maxAmmo = (secondaryItem.ammoMax !== undefined) ? secondaryItem.ammoMax : secCfg.magSize;
+      const ammoState = getLoadoutAmmo(secondaryItem, secCfg);
       this.weapons[2] = {
         type: secKey,
         config: secStats,
         item: secondaryItem,
-        ammoCur: currentAmmo,
-        ammoMax: maxAmmo,
-        ammoTypeKey: secondaryItem.ammoTypeKey || secCfg.defaultAmmoKey || secCfg.compatibleAmmo?.[0]
+        insertedMagazine: ammoState.insertedMagazine,
+        ammoCur: ammoState.ammoCur,
+        ammoMax: ammoState.ammoMax,
+        ammoTypeKey: ammoState.ammoTypeKey
       };
       if (this.dom.lobbySecondaryName) this.dom.lobbySecondaryName.textContent = secCfg.name;
       if (this.dom.slot2Name) this.dom.slot2Name.textContent = secKey.toUpperCase();
@@ -387,6 +412,12 @@ class GameClient {
     item.ammoCur = weapon.ammoCur;
     item.ammoMax = weapon.ammoMax;
     item.ammoTypeKey = weapon.ammoTypeKey;
+    if (weapon.insertedMagazine) {
+      weapon.insertedMagazine.ammo = weapon.ammoCur;
+      weapon.insertedMagazine.currentAmmo = weapon.ammoCur;
+      weapon.insertedMagazine.loadedAmmoKey = weapon.ammoTypeKey;
+      item.insertedMagazine = weapon.insertedMagazine;
+    }
   }
 
   _switchWeaponSlot(slot) {
@@ -894,25 +925,14 @@ class GameClient {
       usableMags.sort((a, b) => (b.ammo || b.currentAmmo || 0) - (a.ammo || a.currentAmmo || 0));
       const newMag = usableMags[0];
 
-      const oldAmmo = wep.ammoCur;
-      const oldAmmoTypeKey = wep.ammoTypeKey;
-      const newAmmo = newMag.ammo ?? newMag.currentAmmo ?? wep.ammoMax;
-
-      // Swap ammo in the magazine item and weapon
-      wep.ammoCur = newAmmo;
-      wep.ammoMax = newMag.maxAmmo ?? wep.config.magSize;
-      wep.ammoTypeKey = newMag.loadedAmmoKey || wep.config.defaultAmmoKey || wep.config.compatibleAmmo?.[0];
-      if (equippedWepItem) {
-        equippedWepItem.ammoCur = wep.ammoCur;
-        equippedWepItem.ammoMax = wep.ammoMax;
-        equippedWepItem.ammoTypeKey = wep.ammoTypeKey;
+      if (!equippedWepItem || !this.inventory.swapWeaponMagazine(equippedWepItem, newMag)) {
+        this._showTacticalAlert('UNABLE TO SWAP MAGAZINE', true);
+        return;
       }
-
-      // The magazine in rig/pockets now holds the previously chambered/ejected rounds!
-      newMag.ammo = oldAmmo;
-      newMag.currentAmmo = oldAmmo;
-      newMag.loadedAmmoKey = oldAmmo > 0 ? oldAmmoTypeKey : null;
-      newMag.sub = `${oldAmmo} / ${newMag.maxAmmo || wep.config.magSize}`;
+      wep.insertedMagazine = equippedWepItem.insertedMagazine;
+      wep.ammoCur = equippedWepItem.ammoCur;
+      wep.ammoMax = equippedWepItem.ammoMax;
+      wep.ammoTypeKey = equippedWepItem.ammoTypeKey;
 
       audioEngine.playReload(isFast);
       this._updateWeaponHUD();
