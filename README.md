@@ -57,7 +57,8 @@ Map tiles are populated with interactive loot entities across all 4 maps:
 - **Proximity HUD Interaction**: When standing within 1.75 tiles of a container, the canvas displays a `[F] SEARCH` prompt.
 - **Hardcore Search Risk**: Rummaging produces noise that nearby Scavs investigate. Most caches are empty; weapons, medicine, armor, valuables, and grenades are scarce, with premium gear exceptionally rare.
 - **Expanded Routes**: Each map has nine fixed loot sites distributed across its major areas, with different crate, ammo, and medical-cache layouts.
-- **Expanded Arsenal**: AKM, SCAR-H, MDR, MP7, P90, UMP45, SV-98, and M1911 join the existing weapons, with compatible magazines and ammunition.
+- **Expanded Arsenal**: AK-12, AUG A3, G36, SR-25, RFB, M700, PP-19, MP9, Five-seveN, and Remington 870 join the AKM, SCAR-H, MDR, MP7, P90, UMP45, SV-98, and M1911, with compatible magazines and ammunition.
+- **Weapon Setup**: Expanded weapons support caliber-matched ammunition with different damage and armor penetration, compatible drag-and-drop attachments, and per-weapon fire selectors and cyclic rates. Internal-magazine weapons load one round per reload; suppressors reduce how far Scavs hear shots, and lasers tighten hip-fire spread.
 - **Throwable Grenades**: Rare F-1, RGD-5, and M67 fragmentation grenades can be thrown with `[3]`. Their blast can kill at close range; walls reduce blast damage.
 - **Streets of Tarkov**: A 140x140 urban district with apartment blocks, a clinic, a central boulevard, nine loot sites, scav patrol areas, and three extraction routes.
 - **Trader Barter Contracts**: Exchange recovered chainlets for a grenade, workshop goods and intelligence for a trauma kit, or military electronics for battle rifle ammunition.
@@ -102,7 +103,8 @@ Map tiles are populated with interactive loot entities across all 4 maps:
   - Their aim takes time to settle and they fire less often; regular Scavs are less accurate than elite enemies.
   - Confirmed hits display a brief hit marker and synthesized audio cue; lethal hits use a distinct marker. Hit targets visibly flinch.
 - **HUD Synchronization**:
-  - Pressing `[B]` toggles mode with mechanical audio feedback.
+  - Pressing `[B]` requests the next supported fire mode with mechanical audio feedback; semi-only weapons cannot be switched to full-auto.
+  - Each weapon uses its catalogued cyclic rate, and loaded ammunition changes damage and armor penetration.
   - HUD displays active mode: `[SEMI] (B)` vs. highlighted `[FULL-AUTO] (B)`.
 - **Physical Bullet Tracers**:
   - Each shot spawns a physical projectile with velocity ($950\text{ px/s}$), line tracer rendering, and obstacle collision detection.

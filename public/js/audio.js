@@ -100,7 +100,7 @@ class TacticalAudioEngine {
     let subStart = 140;
     let gainVal = 0.75;
 
-    if (soundType === 'asval' || soundType === 'vss' || soundType === 'suppressed') {
+    if (soundType === 'asval' || soundType === 'vss' || soundType === 'suppressed' || soundType === 'val_suppressed') {
       freq = 420;
       q = 3.5;
       decay = 0.06;

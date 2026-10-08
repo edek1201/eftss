@@ -1107,6 +1107,23 @@ html, body {
 .item-name.compact { font-size: 8px; line-height: 1.1; }
 .item-sub { font-size: 8.5px; color: var(--text-muted); }
 .item-dim { font-size: 7.5px; color: #5a687a; text-align: right; }
+.item-attachment {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 3px;
+  background: rgba(212, 163, 89, 0.18);
+  border: 1px solid rgba(212, 163, 89, 0.55);
+  color: #f0d39c;
+  font: 7px Consolas, monospace;
+  text-align: left;
+  cursor: pointer;
+}
+.item-attachment:hover {
+  background: rgba(212, 163, 89, 0.35);
+  color: #fff;
+}
 
 .inv-drag-ghost {
   position: fixed;

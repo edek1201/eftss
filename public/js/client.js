@@ -17,7 +17,7 @@ import { GridInventory } from './inventory.js';
 import { audioEngine } from './audio.js';
 import { profileManager } from './profile.js';
 import { TraderMarketEngine } from './traders.js';
-import { WEAPON_REGISTRY, isWeaponItem, getWeaponConfig, isMagazineItem, isAmmoItem, isCompatibleMagazine, isCompatibleAmmo } from '/shared/weapons.js';
+import { WEAPON_REGISTRY, ITEM_CATALOG, isWeaponItem, getWeaponConfig, getWeaponStats, isMagazineItem, isAmmoItem, isCompatibleMagazine, isCompatibleAmmo } from '/shared/weapons.js';
 
 const INTERPOLATION_DELAY_MS = 50;
 
@@ -294,13 +294,16 @@ class GameClient {
 
     if (primCfg) {
       const primKey = Object.keys(WEAPON_REGISTRY).find(k => WEAPON_REGISTRY[k] === primCfg) || primCfg.name.toLowerCase();
+      const primStats = getWeaponStats(primCfg, primaryItem.attachments) || primCfg;
       const currentAmmo = (primaryItem.ammoCur !== undefined) ? primaryItem.ammoCur : primCfg.magSize;
       const maxAmmo = (primaryItem.ammoMax !== undefined) ? primaryItem.ammoMax : primCfg.magSize;
       this.weapons[1] = {
         type: primKey,
-        config: primCfg,
+        config: primStats,
+        item: primaryItem,
         ammoCur: currentAmmo,
-        ammoMax: maxAmmo
+        ammoMax: maxAmmo,
+        ammoTypeKey: primaryItem.ammoTypeKey || primCfg.defaultAmmoKey || primCfg.compatibleAmmo?.[0]
       };
       if (this.dom.lobbyPrimaryName) this.dom.lobbyPrimaryName.textContent = primCfg.name;
       if (this.dom.slot1Name) this.dom.slot1Name.textContent = primKey.toUpperCase();
@@ -316,13 +319,16 @@ class GameClient {
 
     if (secCfg) {
       const secKey = Object.keys(WEAPON_REGISTRY).find(k => WEAPON_REGISTRY[k] === secCfg) || secCfg.name.toLowerCase();
+      const secStats = getWeaponStats(secCfg, secondaryItem.attachments) || secCfg;
       const currentAmmo = (secondaryItem.ammoCur !== undefined) ? secondaryItem.ammoCur : secCfg.magSize;
       const maxAmmo = (secondaryItem.ammoMax !== undefined) ? secondaryItem.ammoMax : secCfg.magSize;
       this.weapons[2] = {
         type: secKey,
-        config: secCfg,
+        config: secStats,
+        item: secondaryItem,
         ammoCur: currentAmmo,
-        ammoMax: maxAmmo
+        ammoMax: maxAmmo,
+        ammoTypeKey: secondaryItem.ammoTypeKey || secCfg.defaultAmmoKey || secCfg.compatibleAmmo?.[0]
       };
       if (this.dom.lobbySecondaryName) this.dom.lobbySecondaryName.textContent = secCfg.name;
       if (this.dom.slot2Name) this.dom.slot2Name.textContent = secKey.toUpperCase();
@@ -355,6 +361,9 @@ class GameClient {
     if (slot6El) slot6El.textContent = `x${this.medInventory.painkiller}`;
 
     const active = this.getActiveWeapon();
+    this.input.fireMode = active.item?.fireMode && active.config.fireModes.includes(active.item.fireMode)
+      ? active.item.fireMode
+      : active.config.defaultFireMode;
     this.localPlayer.activeWeaponType = active.type;
     this.input.cyclicRateMs = active.config.cyclicRateMs;
     this._updateWeaponHUD();
@@ -373,11 +382,11 @@ class GameClient {
 
   _syncActiveWeaponAmmoToInventory() {
     const weapon = this.getActiveWeapon();
-    const gridId = this.activeWeaponSlot === 1 ? 'primaryWeapon' : 'secondaryWeapon';
-    const item = this.inventory.items.find(it => it.gridId === gridId && getWeaponConfig(it) === weapon.config);
+    const item = weapon.item;
     if (!item) return;
     item.ammoCur = weapon.ammoCur;
     item.ammoMax = weapon.ammoMax;
+    item.ammoTypeKey = weapon.ammoTypeKey;
   }
 
   _switchWeaponSlot(slot) {
@@ -390,6 +399,10 @@ class GameClient {
     const wep = this.getActiveWeapon();
     this.localPlayer.activeWeaponType = wep.type;
     this.input.cyclicRateMs = wep.config.cyclicRateMs;
+    this.input.fireMode = wep.item?.fireMode && wep.config.fireModes.includes(wep.item.fireMode)
+      ? wep.item.fireMode
+      : wep.config.defaultFireMode;
+    this.input.onFireModeChange?.(this.input.fireMode, true);
 
     if (!wep.config.fireModes.includes('AUTO') && this.input.fireMode === 'AUTO') {
       this.input.fireMode = 'SEMI';
@@ -408,7 +421,8 @@ class GameClient {
     if (this.dom.hudWepName) this.dom.hudWepName.textContent = wep.type === 'none' ? 'UNARMED' : wep.type.toUpperCase();
     if (this.dom.hudAmmoCur) this.dom.hudAmmoCur.textContent = (wep.type === 'melee' || wep.type === 'none') ? '-' : wep.ammoCur;
     if (this.dom.hudAmmoMax) this.dom.hudAmmoMax.textContent = (wep.type === 'melee' || wep.type === 'none') ? '-' : wep.ammoMax;
-    if (this.dom.hudAmmoType) this.dom.hudAmmoType.textContent = wep.type === 'none' ? 'NO WEAPON' : (wep.type === 'melee' ? 'MELEE' : wep.config.ammoType);
+    const loadedAmmo = ITEM_CATALOG[wep.ammoTypeKey];
+    if (this.dom.hudAmmoType) this.dom.hudAmmoType.textContent = wep.type === 'none' ? 'NO WEAPON' : (wep.type === 'melee' ? 'MELEE' : (loadedAmmo?.name || wep.config.ammoType));
     if (this.dom.badgeFiremode) {
       if (wep.type === 'melee' || wep.type === 'none') {
         this.dom.badgeFiremode.textContent = wep.type === 'none' ? '[UNARMED]' : '[MELEE]';
@@ -731,7 +745,18 @@ class GameClient {
     };
 
     // Fire Mode Toggle [B]
-    this.input.onFireModeChange = (mode) => {
+    this.input.onFireModeChange = (mode, force = false) => {
+      const weapon = this.getActiveWeapon();
+      if (!weapon.config.fireModes.includes(mode)) {
+        audioEngine.playEmptyClick();
+        this._showTacticalAlert(`${weapon.config.name.toUpperCase()} DOES NOT SUPPORT ${mode === 'AUTO' ? 'FULL-AUTO' : mode}`);
+        return;
+      }
+      if (!force) {
+        this.input.fireMode = mode;
+        if (weapon.item) weapon.item.fireMode = mode;
+        audioEngine.playFireSelector();
+      }
       this.dom.badgeFiremode.textContent = (mode === 'SEMI') ? '[SEMI] (B)' : '[FULL-AUTO] (B)';
       this.dom.badgeFiremode.classList.toggle('highlight', mode === 'AUTO');
     };
@@ -812,7 +837,12 @@ class GameClient {
         }
 
         const needed = wep.ammoMax - wep.ammoCur;
-        const roundsToLoad = Math.min(needed, ammoItem.count || 1);
+        const ammoKey = ammoItem.itemKey || ammoItem.id;
+        if (wep.ammoCur > 0 && wep.ammoTypeKey && wep.ammoTypeKey !== ammoKey) {
+          this._showTacticalAlert('FIRE THE REMAINING ROUNDS BEFORE SWITCHING AMMUNITION TYPES', true);
+          return;
+        }
+        const roundsToLoad = Math.min(needed, ammoItem.count || 1, 1);
         ammoItem.count -= roundsToLoad;
         ammoItem.sub = `${ammoItem.count} ROUNDS`;
         if (ammoItem.count <= 0) {
@@ -821,7 +851,11 @@ class GameClient {
         }
 
         wep.ammoCur += roundsToLoad;
-        if (equippedWepItem) equippedWepItem.ammoCur = wep.ammoCur;
+        wep.ammoTypeKey = ammoKey;
+        if (equippedWepItem) {
+          equippedWepItem.ammoCur = wep.ammoCur;
+          equippedWepItem.ammoTypeKey = wep.ammoTypeKey;
+        }
 
         audioEngine.playReload(isFast);
         this._updateWeaponHUD();
@@ -861,19 +895,23 @@ class GameClient {
       const newMag = usableMags[0];
 
       const oldAmmo = wep.ammoCur;
+      const oldAmmoTypeKey = wep.ammoTypeKey;
       const newAmmo = newMag.ammo ?? newMag.currentAmmo ?? wep.ammoMax;
 
       // Swap ammo in the magazine item and weapon
       wep.ammoCur = newAmmo;
       wep.ammoMax = newMag.maxAmmo ?? wep.config.magSize;
+      wep.ammoTypeKey = newMag.loadedAmmoKey || wep.config.defaultAmmoKey || wep.config.compatibleAmmo?.[0];
       if (equippedWepItem) {
         equippedWepItem.ammoCur = wep.ammoCur;
         equippedWepItem.ammoMax = wep.ammoMax;
+        equippedWepItem.ammoTypeKey = wep.ammoTypeKey;
       }
 
       // The magazine in rig/pockets now holds the previously chambered/ejected rounds!
       newMag.ammo = oldAmmo;
       newMag.currentAmmo = oldAmmo;
+      newMag.loadedAmmoKey = oldAmmo > 0 ? oldAmmoTypeKey : null;
       newMag.sub = `${oldAmmo} / ${newMag.maxAmmo || wep.config.magSize}`;
 
       audioEngine.playReload(isFast);
@@ -1534,7 +1572,7 @@ class GameClient {
         const movementSpeed = Math.hypot(this.localPlayer.vx || 0, this.localPlayer.vy || 0);
         const stanceSpread = this.localPlayer.isCrouching ? 0.012 : 0.035;
         const movementSpread = Math.min(0.075, movementSpeed / 280 * (this.localPlayer.isSprinting ? 0.10 : 0.07));
-        const aimMultiplier = inputState.isAiming ? 0.55 : 1;
+        const aimMultiplier = inputState.isAiming ? 0.55 : activeWep.config.hipfireSpreadMultiplier;
         this.spreadBloom = Math.min(0.18, this.spreadBloom + activeWep.config.bloom);
         const shotSpread = (activeWep.config.spread + stanceSpread + movementSpread + this.spreadBloom) * aimMultiplier;
         shotAngle = this.localPlayer.angle + (Math.random() * 2 - 1) * shotSpread;
@@ -1550,7 +1588,9 @@ class GameClient {
           weaponType: activeWep.type
         });
 
-        const acousticMax = (activeWep.config.soundType === 'mosin') ? 260 : 170;
+        const acousticMax = activeWep.config.soundType === 'val_suppressed'
+          ? 70
+          : (activeWep.config.soundType === 'mosin' ? 260 : 170);
         this.acousticRings.push({
           x: this.localPlayer.x, y: this.localPlayer.y,
           currentRadius: 18, maxRadius: acousticMax, alpha: 0.85
@@ -1608,6 +1648,8 @@ class GameClient {
       isAiming: inputState.isAiming,
       isFiring: this.localPlayer.isFiring,
       shotAngle,
+      shotAmmoKey: activeWep.ammoTypeKey,
+      weaponAttachmentIds: activeWep.item?.attachments || [],
       activeWeaponType: activeWep.type,
       fireMode: inputState.fireMode,
       tacticalDevice: inputState.tacticalDevice

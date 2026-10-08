@@ -9,7 +9,7 @@
 
 import { TacticalMap, MAP_CONFIGS } from '../shared/map.js';
 import { updatePlayerMovement, resolveMapCollisions, PHYSICS_CONFIG } from '../shared/physics.js';
-import { WEAPON_REGISTRY, ITEM_CATALOG } from '../shared/weapons.js';
+import { WEAPON_REGISTRY, ITEM_CATALOG, getWeaponStats, isCompatibleAmmo } from '../shared/weapons.js';
 
 export const SERVER_TICK_RATE = 30; // 30 Hz Authoritative Simulation
 export const SERVER_TICK_DELTA = 1.0 / SERVER_TICK_RATE; // ~33.3ms
@@ -776,7 +776,7 @@ export class GameRoom {
 
           // Process Player Weapon Fire Hitreg vs Scav Bots
           if (input.isFiring) {
-            this._processPlayerShot(player, input.shotAngle);
+            this._processPlayerShot(player, input.shotAngle, input.shotAmmoKey, input.weaponAttachmentIds);
           }
         }
       } else {
@@ -837,13 +837,21 @@ export class GameRoom {
   /**
    * Player Bullet Hit Registration against Scav Bots & Bosses
    */
-  _processPlayerShot(player, shotAngle = player.angle) {
+  _processPlayerShot(player, shotAngle = player.angle, ammoKey = null, attachmentKeys = []) {
     const wepType = player.activeWeaponType || 'none';
     if (wepType === 'none') return;
     const isMelee = (wepType === 'melee');
     const maxRange = isMelee ? 60 : 520;
 
-    const baseDamage = WEAPON_REGISTRY[wepType]?.damage || 42;
+    const weaponConfig = WEAPON_REGISTRY[wepType];
+    const attachments = Array.isArray(attachmentKeys)
+      ? attachmentKeys.map(key => ITEM_CATALOG[key]).filter(Boolean)
+      : [];
+    const weaponStats = getWeaponStats(weaponConfig, attachments);
+    const ammoItem = typeof ammoKey === 'string' ? ITEM_CATALOG[ammoKey] : null;
+    const validAmmo = ammoItem && isCompatibleAmmo(weaponConfig, ammoItem) ? ammoItem : null;
+    const baseDamage = (weaponStats?.damage || 42) * (validAmmo?.damageMultiplier || 1);
+    player.lastShotNoiseRange = weaponStats?.soundType === 'val_suppressed' ? 210 : 520;
 
     const firingAngle = Number.isFinite(shotAngle) ? shotAngle : player.angle;
     const originX = player.x + Math.cos(player.angle) * 36;
@@ -884,7 +892,9 @@ export class GameRoom {
     if (!nearestHit) return;
     const { bot } = nearestHit;
     const isHeadshot = Math.random() < 0.22;
-    const armorMultiplier = bot.isBoss ? 0.48 : bot.isGuard ? 0.65 : 0.82;
+    const armorProtection = bot.isBoss ? 0.52 : bot.isGuard ? 0.35 : 0.18;
+    const penetration = validAmmo?.armorPenetration || 0;
+    const armorMultiplier = 1 - armorProtection * (1 - penetration);
 
     if (isHeadshot) {
       const headMultiplier = bot.isBoss ? (wepType === 'mosin' || wepType === 'asval' ? 0.8 : 0.45) : 0.9;
@@ -1068,7 +1078,8 @@ export class GameRoom {
             }
           } else {
             const lootingNoise = this.playersLootNoise.has(p.id) && d < 320;
-            const canHear = (p.isSprinting && d < 240) || (p.isFiring && d < 520) || lootingNoise;
+            const canHear = (p.isSprinting && d < 240) ||
+              (p.isFiring && d < (p.lastShotNoiseRange || 520)) || lootingNoise;
             if (canHear && d < heardDist) {
               heardDist = d;
               heardPlayer = p;

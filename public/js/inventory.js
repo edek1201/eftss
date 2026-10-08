@@ -6,7 +6,7 @@
 
 import { audioEngine } from './audio.js';
 import { profileManager } from './profile.js';
-import { isWeaponItem, getRarityColor, WEAPON_REGISTRY, isMagazineItem, isAmmoItem, isCompatibleMagazine, isCompatibleAmmo } from '/shared/weapons.js';
+import { isWeaponItem, getRarityColor, WEAPON_REGISTRY, ITEM_CATALOG, getWeaponConfig, isMagazineItem, isAmmoItem, isCompatibleMagazine, isCompatibleAmmo, isCompatibleAttachment } from '/shared/weapons.js';
 
 export class GridInventory {
   constructor(overlayElement) {
@@ -371,6 +371,7 @@ export class GridInventory {
       if (!g) continue;
 
       const cellPx = g.cellPx;
+      const weaponConfig = getWeaponConfig(item);
       const el = document.createElement('div');
       const rarity = item.rarity || 'common';
       el.className = `tetris-item rarity-${rarity}`;
@@ -380,7 +381,20 @@ export class GridInventory {
       el.style.left = `${item.gx * cellPx + 1}px`;
       el.style.top = `${item.gy * cellPx + 1}px`;
       el.style.borderColor = getRarityColor(rarity) || item.color;
-      el.title = `${item.name} ${item.sub ? '(' + item.sub + ')' : ''} [Double-click: Equip/Unequip | Alt+Click: Quick action | Ctrl+Click: Transfer]`;
+      const readableDetails = [
+        item.name,
+        item.sub,
+        item.caliber && `Caliber: ${item.caliber}`,
+        weaponConfig && `Rate of fire: ${weaponConfig.rpm} RPM`,
+        weaponConfig && `Fire modes: ${weaponConfig.fireModes.join(', ')}`,
+        item.ammoTypeKey && `Loaded ammunition: ${ITEM_CATALOG[item.ammoTypeKey]?.name || item.ammoTypeKey}`,
+        item.damageMultiplier && `Damage: ${Math.round(item.damageMultiplier * 100)}%`,
+        item.armorPenetration !== undefined && `Armor penetration: ${Math.round(item.armorPenetration * 100)}%`,
+        item.type === 'weapon_mod' && `Attachment slot: ${item.modSlot}`,
+        item.attachments?.length && `Attachments: ${item.attachments.map(key => ITEM_CATALOG[key]?.name || key).join(', ')}`,
+        'Double-click weapon to equip/unequip; drag attachment onto a weapon.'
+      ].filter(Boolean);
+      el.title = readableDetails.join('\n');
 
       // Durability bar
       let durHtml = '';
@@ -396,15 +410,22 @@ export class GridInventory {
         const curA = item.ammo ?? item.currentAmmo ?? 0;
         const maxA = item.maxAmmo || 30;
         ammoHtml = `<div class="item-ammo-badge">${curA}/${maxA}</div>`;
+      } else if (weaponConfig && Number.isFinite(item.ammoCur)) {
+        ammoHtml = `<div class="item-ammo-badge">${item.ammoCur}/${item.ammoMax || weaponConfig.magSize}</div>`;
       } else if (item.ammo !== undefined || item.currentAmmo !== undefined || item.count !== undefined) {
         const cnt = item.currentAmmo ?? item.ammo ?? item.count;
         ammoHtml = `<div class="item-ammo-badge">${cnt}</div>`;
       }
+      const attachmentsHtml = (item.attachments || []).map((attachmentKey, index) => {
+        const attachmentName = ITEM_CATALOG[attachmentKey]?.name || attachmentKey.replaceAll('_', ' ');
+        return `<button class="item-attachment" type="button" data-attachment-index="${index}" title="${attachmentName} — click to remove">${attachmentName}</button>`;
+      }).join('');
 
       const isCompact = (item.w === 1 && item.h === 1);
       el.innerHTML = isCompact ? `
         <div class="item-tag compact" style="background-color: ${item.color}">${item.tag}</div>
         <div class="item-name compact">${item.name}</div>
+        ${attachmentsHtml}
         ${ammoHtml}
         ${durHtml}
       ` : `
@@ -412,11 +433,19 @@ export class GridInventory {
         <div class="item-name">${item.name}</div>
         <div class="item-sub">${item.sub || ''}</div>
         <div class="item-dim">${item.w}x${item.h}</div>
+        ${attachmentsHtml}
         ${ammoHtml}
         ${durHtml}
       `;
 
       el.addEventListener('click', (e) => {
+        const attachmentButton = e.target.closest('.item-attachment');
+        if (attachmentButton) {
+          e.stopPropagation();
+          e.preventDefault();
+          this._removeAttachment(item, Number(attachmentButton.dataset.attachmentIndex));
+          return;
+        }
         if (e.altKey) {
           e.stopPropagation();
           e.preventDefault();
@@ -429,6 +458,11 @@ export class GridInventory {
       });
 
       el.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.item-attachment')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         if (!e.altKey && !e.shiftKey && !e.ctrlKey) {
           e.stopPropagation();
           const now = Date.now();
@@ -684,28 +718,79 @@ export class GridInventory {
     }
 
     // Magazine Repacking & Direct Rifle Loading (Ammo -> Magazine / Mosin)
-    const targetItem = this.items.find(it => 
+    const targetItem = this.items.find(it =>
       it.gridId === gridId && it.id !== item.id &&
       gx >= it.gx && gx < it.gx + it.w &&
       gy >= it.gy && gy < it.gy + it.h
     );
 
-    if (targetItem && isAmmoItem(item) && (isMagazineItem(targetItem) || targetItem.weaponType === 'mosin' || targetItem.id === 'mosin')) {
+    if (targetItem && item.type === 'weapon_mod' && isWeaponItem(targetItem)) {
+      if (!isCompatibleAttachment(targetItem, item)) {
+        this._setStatus(`${item.name} DOES NOT FIT ${targetItem.name}`);
+        this._cancelHold();
+        return;
+      }
+      const attachments = targetItem.attachments || [];
+      const occupiedSlot = attachments.find(key => {
+        const attachedMod = ITEM_CATALOG[key];
+        return attachedMod?.modSlot === item.modSlot;
+      });
+      if (occupiedSlot) {
+        this._setStatus(`REMOVE OR REPLACE THE EXISTING ${item.modSlot.toUpperCase()} FIRST`);
+        this._cancelHold();
+        return;
+      }
+
+      targetItem.attachments = [...attachments, item.itemKey || item.id];
+      const itemIndex = this.items.indexOf(item);
+      if (itemIndex !== -1) this.items.splice(itemIndex, 1);
+      if (oldGridId.startsWith('container_') && this.onContainerTransfer && this.activeContainer) {
+        this.onContainerTransfer(this.activeContainer.id, item.id, 'take', null);
+      }
+      this.overlay.classList.remove('is-dragging-item');
+      this.heldItem = null;
+      this.heldOriginal = null;
+      this.hoverTarget = null;
+      this.ghostEl.style.display = 'none';
+      this.ghostEl.style.transform = 'translate3d(-9999px, -9999px, 0)';
+      this._clearAllHighlights();
+      this._renderItemsOnly();
+      this._setStatus(`INSTALLED ${item.name} ON ${targetItem.name}`);
+      if (this.onEquipmentChanged) this.onEquipmentChanged();
+      return;
+    }
+
+    const targetWeaponConfig = getWeaponConfig(targetItem);
+    if (targetItem && isAmmoItem(item) && (isMagazineItem(targetItem) || targetWeaponConfig?.internalMag)) {
       if (isCompatibleAmmo(targetItem, item)) {
-        const curAmmo = targetItem.ammo ?? targetItem.currentAmmo ?? 0;
-        const maxAmmo = targetItem.maxAmmo || ((targetItem.weaponType === 'mosin' || targetItem.id === 'mosin') ? 5 : 30);
+        const curAmmo = targetWeaponConfig?.internalMag
+          ? (targetItem.ammoCur ?? targetItem.ammo ?? targetItem.currentAmmo ?? 0)
+          : (targetItem.ammo ?? targetItem.currentAmmo ?? 0);
+        const maxAmmo = targetItem.maxAmmo || targetWeaponConfig?.magSize || 30;
         const space = maxAmmo - curAmmo;
         if (space <= 0) {
           this._setStatus(`${targetItem.name} IS ALREADY FULL (${maxAmmo}/${maxAmmo})`);
           this._cancelHold();
           return;
         }
+        const ammoKey = item.itemKey || item.id;
+        if (curAmmo > 0 && targetItem.loadedAmmoKey && targetItem.loadedAmmoKey !== ammoKey) {
+          this._setStatus(`EMPTY ${targetItem.name} BEFORE MIXING AMMUNITION TYPES`);
+          this._cancelHold();
+          return;
+        }
 
         const avail = item.count ?? item.ammo ?? 30;
-        const loadCount = Math.min(space, avail);
+        const isTubeFed = Boolean(targetWeaponConfig?.internalMag && targetWeaponConfig.category === 'shotgun');
+        const loadCount = Math.min(space, avail, isTubeFed ? 1 : space);
 
         targetItem.ammo = curAmmo + loadCount;
         targetItem.currentAmmo = targetItem.ammo;
+        targetItem.loadedAmmoKey = ammoKey;
+        if (targetWeaponConfig?.internalMag) {
+          targetItem.ammoCur = targetItem.ammo;
+          targetItem.ammoTypeKey = ammoKey;
+        }
         targetItem.sub = `${targetItem.ammo} / ${maxAmmo}`;
 
         item.count = avail - loadCount;
@@ -731,7 +816,7 @@ export class GridInventory {
         audioEngine.playReload(false);
         this._renderItemsOnly();
         this._saveStashStateToProfile();
-        this._setStatus(`LOADED ${loadCount} ROUNDS INTO ${targetItem.name} (${targetItem.ammo}/${maxAmmo})`);
+        this._setStatus(`LOADED ${loadCount} ${targetWeaponConfig?.category === 'shotgun' ? 'SHELL' : 'ROUND'}${loadCount === 1 ? '' : 'S'} INTO ${targetItem.name} (${targetItem.ammo}/${maxAmmo})`);
         return;
       } else {
         this._setStatus(`INCOMPATIBLE CALIBER: Cannot load ${item.name} into ${targetItem.name}`);
@@ -810,6 +895,57 @@ export class GridInventory {
     this._clearAllHighlights();
     this._renderItemsOnly();
     this._setStatus(`ACTION CANCELLED: ITEM RETURNED`);
+  }
+
+  _removeAttachment(weapon, attachmentIndex) {
+    const attachments = weapon.attachments || [];
+    const [attachmentKey] = attachments.splice(attachmentIndex, 1);
+    const definition = attachmentKey && (this.items.find(item => (item.itemKey || item.id) === attachmentKey) || null);
+    if (!attachmentKey) return;
+    const catalogItem = definition || this._getAttachmentDefinition(attachmentKey);
+    if (!catalogItem) return;
+
+    const grids = weapon.gridId === 'primaryWeapon' || weapon.gridId === 'secondaryWeapon'
+      ? ['rig', 'backpack', 'pockets', 'alpha']
+      : [weapon.gridId, 'backpack', 'rig', 'pockets', 'alpha'];
+    for (const gridId of grids) {
+      const grid = this._getGridDef(gridId);
+      if (!grid) continue;
+      const item = {
+        ...catalogItem,
+        id: `${attachmentKey}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        itemKey: attachmentKey,
+        gridId,
+        gx: 0,
+        gy: 0
+      };
+      let placed = false;
+      for (let gy = 0; gy <= grid.rows - item.h && !placed; gy++) {
+        for (let gx = 0; gx <= grid.cols - item.w; gx++) {
+          if (this.canPlace(gridId, item, gx, gy, item.w, item.h)) {
+            item.gx = gx;
+            item.gy = gy;
+            this.items.push(item);
+            placed = true;
+            break;
+          }
+        }
+      }
+      if (placed) {
+        weapon.attachments = attachments;
+        this._renderItemsOnly();
+        this._setStatus(`REMOVED ${catalogItem.name} FROM ${weapon.name}`);
+        if (this.onEquipmentChanged) this.onEquipmentChanged();
+        return;
+      }
+    }
+
+    attachments.splice(attachmentIndex, 0, attachmentKey);
+    this._setStatus('NO INVENTORY SPACE TO REMOVE ATTACHMENT');
+  }
+
+  _getAttachmentDefinition(key) {
+    return ITEM_CATALOG[key] || null;
   }
 
   _dropHeldItem() {
