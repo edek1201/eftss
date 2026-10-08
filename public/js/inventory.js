@@ -49,6 +49,8 @@ export class GridInventory {
     this.onDropItem = null;
     this.onStashClosed = null;
     this.onEquipmentChanged = null;
+    this.magazineUnloadTimer = null;
+    this.magazineUnloadState = null;
 
     this._createDOMSkeleton();
     this._bindEvents();
@@ -91,6 +93,7 @@ export class GridInventory {
   }
 
   openGearView() {
+    this._cancelMagazineUnload(false);
     this.viewMode = 'GEAR';
     this.activeContainer = null;
     this.containerGrid = null;
@@ -99,6 +102,7 @@ export class GridInventory {
   }
 
   openContainerSearch(container) {
+    this._cancelMagazineUnload(false);
     this.viewMode = 'CONTAINER_LOOT';
     this.activeContainer = container;
     this.containerGrid = {
@@ -121,6 +125,7 @@ export class GridInventory {
   }
 
   openOutOfRaidStashView() {
+    this._cancelMagazineUnload(false);
     this.viewMode = 'OUT_OF_RAID_STASH';
     this.activeContainer = null;
     this.containerGrid = null;
@@ -138,6 +143,7 @@ export class GridInventory {
   }
 
   close() {
+    this._cancelMagazineUnload(false);
     if (this.heldItem) this._cancelHold();
     this.overlay.classList.remove('active');
     const wasStashMode = (this.viewMode === 'OUT_OF_RAID_STASH');
@@ -374,7 +380,13 @@ export class GridInventory {
       const weaponConfig = getWeaponConfig(item);
       const el = document.createElement('div');
       const rarity = item.rarity || 'common';
-      el.className = `tetris-item rarity-${rarity}`;
+      const isCompact = item.w === 1 && item.h === 1;
+      const isNarrow = item.w === 1;
+      const itemKind = isWeaponItem(item) ? 'item-kind-weapon'
+        : isMagazineItem(item) ? 'item-kind-magazine'
+          : isAmmoItem(item) ? 'item-kind-ammo' : 'item-kind-gear';
+      const compactMagazineClass = isCompact && isMagazineItem(item) ? ' compact-magazine' : '';
+      el.className = `tetris-item ${itemKind} rarity-${rarity}${isNarrow ? ' narrow-item' : ''}${isCompact ? ' compact-item' : ''}${compactMagazineClass}`;
       el.id = `item-${item.id}`;
       el.style.width = `${item.w * cellPx - 2}px`;
       el.style.height = `${item.h * cellPx - 2}px`;
@@ -424,23 +436,28 @@ export class GridInventory {
       const magazineHtml = weaponConfig && !weaponConfig.internalMag && weaponConfig.defaultMag && magazine !== null
         ? `<button class="item-magazine" type="button" title="Remove the loaded magazine and keep its remaining rounds">REMOVE MAG (${magazine?.ammo ?? magazine?.currentAmmo ?? item.ammoCur ?? weaponConfig.magSize})</button>`
         : '';
-
-      const isCompact = (item.w === 1 && item.h === 1);
+      const magazineAmmo = item.ammo ?? item.currentAmmo ?? 0;
+      const unloadState = this.magazineUnloadState?.magazine === item ? this.magazineUnloadState : null;
+      const unloadHtml = isMagazineItem(item) && magazineAmmo > 0
+        ? `<button class="item-unload-mag${unloadState ? ' is-unloading' : ''}" type="button" title="${unloadState ? 'Cancel unloading' : 'Unload one round every 0.5 seconds'}">${unloadState ? `STOP ${unloadState.roundsRemoved}/${unloadState.roundsToUnload}` : 'UNLOAD'}</button>`
+        : '';
       el.innerHTML = isCompact ? `
-        <div class="item-tag compact" style="background-color: ${item.color}">${item.tag}</div>
+        <div class="item-topline">${ammoHtml}</div>
         <div class="item-name compact">${item.name}</div>
         ${attachmentsHtml}
+        ${unloadHtml}
         ${magazineHtml}
-        ${ammoHtml}
         ${durHtml}
       ` : `
-        <div class="item-tag" style="background-color: ${item.color}">${item.tag}</div>
+        <div class="item-topline">
+          <div class="item-tag" style="background-color: ${item.color}">${item.tag}</div>
+          ${ammoHtml}
+        </div>
         <div class="item-name">${item.name}</div>
         <div class="item-sub">${item.sub || ''}</div>
-        <div class="item-dim">${item.w}x${item.h}</div>
         ${attachmentsHtml}
+        ${unloadHtml}
         ${magazineHtml}
-        ${ammoHtml}
         ${durHtml}
       `;
 
@@ -458,6 +475,13 @@ export class GridInventory {
           this._removeMagazine(item);
           return;
         }
+        if (e.target.closest('.item-unload-mag')) {
+          e.stopPropagation();
+          e.preventDefault();
+          if (this.magazineUnloadState?.magazine === item) this._cancelMagazineUnload();
+          else this._startMagazineUnload(item);
+          return;
+        }
         if (e.altKey) {
           e.stopPropagation();
           e.preventDefault();
@@ -470,7 +494,12 @@ export class GridInventory {
       });
 
       el.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.item-attachment, .item-magazine')) {
+        if (e.target.closest('.item-attachment, .item-magazine, .item-unload-mag')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        if (this.magazineUnloadState?.magazine === item) {
           e.preventDefault();
           e.stopPropagation();
           return;
@@ -960,6 +989,133 @@ export class GridInventory {
     return ITEM_CATALOG[key] || null;
   }
 
+  _ammoStorageGrids() {
+    const gridIds = ['rig', 'backpack', 'pockets', 'alpha'];
+    if (this.viewMode === 'OUT_OF_RAID_STASH') gridIds.push('stash');
+    return gridIds;
+  }
+
+  _findAmmoStackDestination(ammoKey, ammoDefinition) {
+    const maxCount = ammoDefinition.maxCount || ammoDefinition.count || 60;
+    for (const item of this.items) {
+      if (!isAmmoItem(item) || (item.itemKey || item.id) !== ammoKey) continue;
+      const count = item.count ?? item.ammo ?? 0;
+      if (count < maxCount) return { item, maxCount };
+    }
+
+    for (const gridId of this._ammoStorageGrids()) {
+      const grid = this._getGridDef(gridId);
+      if (!grid) continue;
+      const placementProbe = { ...ammoDefinition, id: `ammo_unload_probe_${gridId}` };
+      for (let gy = 0; gy <= grid.rows - ammoDefinition.h; gy++) {
+        for (let gx = 0; gx <= grid.cols - ammoDefinition.w; gx++) {
+          if (this.canPlace(gridId, placementProbe, gx, gy, ammoDefinition.w, ammoDefinition.h)) {
+            return { gridId, gx, gy, maxCount };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  _getMagazineAmmoKey(magazine) {
+    if (magazine.loadedAmmoKey && ITEM_CATALOG[magazine.loadedAmmoKey]) return magazine.loadedAmmoKey;
+    const magazineKey = magazine.itemKey || magazine.id;
+    const compatibleWeapon = Object.values(WEAPON_REGISTRY).find(config =>
+      config.compatibleMags?.includes(magazineKey)
+    );
+    return compatibleWeapon?.defaultAmmoKey || compatibleWeapon?.compatibleAmmo?.[0] || null;
+  }
+
+  _startMagazineUnload(magazine) {
+    const ammoCount = magazine.ammo ?? magazine.currentAmmo ?? 0;
+    const ammoKey = this._getMagazineAmmoKey(magazine);
+    const ammoDefinition = ITEM_CATALOG[ammoKey];
+    if (ammoCount <= 0 || !ammoKey || !ammoDefinition || !isAmmoItem(ammoDefinition)) {
+      this._setStatus(`CANNOT IDENTIFY AMMUNITION IN ${magazine.name}`);
+      return;
+    }
+    if (!this._findAmmoStackDestination(ammoKey, ammoDefinition)) {
+      this._setStatus('NO INVENTORY SPACE FOR REMOVED ROUNDS');
+      return;
+    }
+
+    this.magazineUnloadState = {
+      magazine,
+      ammoKey,
+      roundsToUnload: ammoCount,
+      roundsRemoved: 0
+    };
+    this._renderItemsOnly();
+    this._setStatus(`UNLOADING ${magazine.name}: ONE ROUND EVERY 0.5 SECONDS`);
+    this.magazineUnloadTimer = window.setTimeout(() => this._unloadMagazineRound(), 500);
+  }
+
+  _cancelMagazineUnload(render = true) {
+    if (!this.magazineUnloadState) return;
+    window.clearTimeout(this.magazineUnloadTimer);
+    const { magazine, roundsRemoved } = this.magazineUnloadState;
+    this.magazineUnloadTimer = null;
+    this.magazineUnloadState = null;
+    if (render) {
+      this._renderItemsOnly();
+      this._setStatus(`UNLOADING STOPPED: ${roundsRemoved} ROUND${roundsRemoved === 1 ? '' : 'S'} REMOVED`);
+    }
+  }
+
+  _unloadMagazineRound() {
+    const state = this.magazineUnloadState;
+    if (!state || !this.items.includes(state.magazine)) {
+      this._cancelMagazineUnload();
+      return;
+    }
+
+    const ammoDefinition = ITEM_CATALOG[state.ammoKey];
+    const destination = ammoDefinition && this._findAmmoStackDestination(state.ammoKey, ammoDefinition);
+    if (!destination) {
+      this._cancelMagazineUnload(false);
+      this._renderItemsOnly();
+      this._setStatus('NO INVENTORY SPACE FOR REMOVED ROUNDS; REMAINING ROUNDS STAY IN THE MAGAZINE');
+      return;
+    }
+
+    if (destination.item) {
+      destination.item.count = (destination.item.count ?? destination.item.ammo ?? 0) + 1;
+      destination.item.sub = `${destination.item.count} ROUNDS`;
+    } else {
+      const ammoStack = {
+        ...ammoDefinition,
+        id: `${state.ammoKey}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        itemKey: state.ammoKey,
+        count: 1,
+        sub: '1 ROUND',
+        gridId: destination.gridId,
+        gx: destination.gx,
+        gy: destination.gy
+      };
+      this.items.push(ammoStack);
+    }
+
+    const magazine = state.magazine;
+    magazine.ammo = Math.max(0, (magazine.ammo ?? magazine.currentAmmo ?? 0) - 1);
+    magazine.currentAmmo = magazine.ammo;
+    magazine.sub = `${magazine.ammo} / ${magazine.maxAmmo || 30} Rounds`;
+    state.roundsRemoved += 1;
+    this._saveStashStateToProfile();
+
+    if (magazine.ammo === 0 || state.roundsRemoved >= state.roundsToUnload) {
+      this.magazineUnloadTimer = null;
+      this.magazineUnloadState = null;
+      this._renderItemsOnly();
+      this._setStatus(`UNLOADED ${state.roundsRemoved} ROUND${state.roundsRemoved === 1 ? '' : 'S'} FROM ${magazine.name}`);
+      return;
+    }
+
+    this._renderItemsOnly();
+    this._setStatus(`UNLOADING ${magazine.name}: ${state.roundsRemoved}/${state.roundsToUnload} ROUNDS`);
+    this.magazineUnloadTimer = window.setTimeout(() => this._unloadMagazineRound(), 500);
+  }
+
   _removeMagazine(weapon) {
     const weaponConfig = getWeaponConfig(weapon);
     if (!weaponConfig || weaponConfig.internalMag || !weaponConfig.defaultMag || weapon.insertedMagazine === null) return;
@@ -1369,7 +1525,7 @@ export class GridInventory {
     }
 
     if (profileManager.profile) {
-      profileManager.profile.stashItems = stash;
+      if (this.viewMode === 'OUT_OF_RAID_STASH') profileManager.profile.stashItems = stash;
       profileManager.profile.loadout = { primary, secondary, rig, backpack, alpha, pockets };
       profileManager.saveProfile();
     }
